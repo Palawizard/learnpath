@@ -1,0 +1,11 @@
+{
+  "$comment": "STUB — à écrire au Lot 1. Doit couvrir l'intégralité de docs/SPEC-PARCOURS.md, y compris les contraintes: ids d'étapes uniques, entre 1 et 20 étapes, tests.grep non vide, aucun chemin absolu ni '..' dans tests.file / expected.files / solution.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://learnpath.dev/schema/parcours.schema.json",
+  "title": "Parcours LearnPath",
+  "type": "object",
+  "required": ["version", "slug", "title", "runner", "steps"],
+  "properties": {
+    "version": { "const": 1 }
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.vsix
+.DS_Store
+examples/demo-project/node_modules/
+examples/demo-project/.learn/state.json
+examples/demo-project/.learn/.result.json

@@ -1,0 +1,70 @@
+{
+  "name": "learnpath",
+  "displayName": "LearnPath",
+  "description": "Joue des parcours d'apprentissage guidés dans ton propre projet",
+  "version": "0.0.1",
+  "license": "MIT",
+  "publisher": "TODO",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.learn/parcours/*.json"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "learnpath.open",
+        "title": "LearnPath: Ouvrir le parcours"
+      },
+      {
+        "command": "learnpath.import",
+        "title": "LearnPath: Importer un parcours..."
+      },
+      {
+        "command": "learnpath.runStep",
+        "title": "LearnPath: Relancer les tests de l'étape"
+      },
+      {
+        "command": "learnpath.reset",
+        "title": "LearnPath: Réinitialiser le parcours"
+      }
+    ],
+    "configuration": {
+      "title": "LearnPath",
+      "properties": {
+        "learnpath.debounceMs": {
+          "type": "number",
+          "default": 500,
+          "description": "Délai avant lancement des tests après une sauvegarde."
+        },
+        "learnpath.autoAdvance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Passer à l'étape suivante automatiquement quand les tests passent."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc --noEmit && node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.11"
+  }
+}
