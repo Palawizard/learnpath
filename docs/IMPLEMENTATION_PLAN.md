@@ -41,14 +41,14 @@ parcours sans `runner`, avec un `tests.file` contenant `..`, avec deux étapes d
 
 - `src/core/importer.ts` :
   - crée `.learn/`, écrit les fichiers de test depuis `steps[].tests.content`
-  - génère `.learn/vitest.config.ts` (include = `.learn/tests/**`, root = workspace)
+  - génère `.learn/vitest.config.mts` (include = `.learn/tests/**`, root = workspace)
   - joue `runner.setup` avec sortie visible pour l'utilisateur
-  - ajoute `.learn/state.json` et `.learn/.result.json` au `.gitignore` s'il existe
+  - ajoute `.learn/state.json` au `.gitignore`, et le crée s'il n'existe pas (D13)
 - `src/core/state.ts` : création, lecture, écriture, avancement, solutions révélées
 - Commande `learnpath.import` avec sélecteur de fichier
 
 **Fini quand** : importer `exemple-panier.json` dans un projet vide crée l'arborescence
-complète et `npx vitest run --config .learn/vitest.config.ts` s'exécute (en échouant).
+complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en échouant).
 
 ---
 
@@ -57,7 +57,7 @@ complète et `npx vitest run --config .learn/vitest.config.ts` s'exécute (en é
 **But** : le cœur technique. Lancer, parser, classer.
 
 - `src/runner/vitest.ts` : construit et lance la commande, avec timeout et annulation
-- `src/runner/parse.ts` : lit `.learn/.result.json` → structure exploitable
+- `src/runner/parse.ts` : lit le rapport JSON du run → structure exploitable
 - `src/runner/classify.ts` : `missing-file` | `parse-error` | `assertion-failed` | `pass`
 - Fixtures réelles dans `src/runner/__fixtures__/` : capturer de vraies sorties Vitest pour
   chacun des quatre cas, ne pas les écrire à la main
@@ -102,13 +102,44 @@ passer l'UI à l'étape 2 sans aucun clic.
 
 ---
 
-## Lot 6 — Robustesse et publication
+## Lot 6 — Fiabilisation
 
-- Projet existant qui a déjà Vitest : vérifier la non-interférence
-- Reprise après fermeture de l'éditeur en cours de parcours
-- Reset de parcours
-- README, capture d'écran, publication sur Open VSX **et** le marketplace VS Code
-- Test manuel complet sur VSCodium
+Le lot 6 initial mélangeait la fiabilisation et la publication. Les deux ne se jugent pas
+avec les mêmes critères : la publication attend un produit dont on est sûr. Scindé.
+
+- `verifyAllGreen` : à l'import, appliquer les solutions étape par étape dans une copie
+  temporaire du workspace et exiger après chaque étape N que les étapes 1..N soient toutes
+  vertes. Attrape la solution qui régresse **et** celle qui ne passe pas ses propres tests,
+  et les nomme différemment (D21)
+- `src/core/humanize.ts` : traduction des formes d'erreur Vitest fréquentes, le message
+  brut toujours visible en dessous, aucune forme non reconnue reformulée (D22)
+- Indicateur de run en cours dès la fin du debounce, et affichage périmé de la tentative
+  précédente pendant ce temps
+- Ergonomie : panneau de fin réduit au récapitulatif, barre de progression segmentée
+  cohérente avec le compteur
+- `learnpath.reset` : recommencer depuis l'étape 1, ou supprimer le parcours (D23)
+- Gestionnaires de paquets : pnpm traité, Yarn PnP refusé avec un message clair
+- Non-interférence avec un projet qui a déjà Vitest et sa config, dans les deux sens
+- Reprise à la bonne étape après fermeture de l'éditeur
+
+**Fini quand** : les deux parcours fautifs de `src/core/__fixtures__/` sont refusés avec le
+bon diagnostic, l'import est mesuré sur un vrai projet npm, un vrai projet pnpm et un
+projet qui a déjà Vitest.
+
+---
+
+## Lot 7 — Publication
+
+- README pour l'utilisateur final, emplacements des captures
+- LICENSE, métadonnées du paquet, icône, `.vscodeignore`, VSIX
+- CI GitHub Actions : ubuntu + windows, Node 20 et 22
+- `docs/MANUAL-QA.md` : la checklist de ce qu'un humain doit vérifier à l'écran
+- Publication sur Open VSX **et** le marketplace VS Code
+- Test manuel complet sur VSCodium, et sur l'Extension Development Host de VS Code :
+  focus, thème contrasté, annonce `aria-live`, animation
+
+**Fait, sauf** la publication elle-même et tout ce qui demande un écran : voir
+`MANUAL-QA.md` et la tête de `HANDOFF.md`.
 
 ---
 

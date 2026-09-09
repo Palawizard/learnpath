@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "slug": "panier",
+  "title": "Un panier d'achat avec total et remises",
+  "intro": "On construit un panier utilisable dans une boutique : ajouter des articles, calculer un total, appliquer un code promo. Cinq étapes. À chaque étape tu écris le code, tu sauvegardes, et ça passe tout seul à la suite quand c'est bon.",
+  "contract": {
+    "files": {
+      "src/panier.js": "createPanier() -> panier ; addItem(panier, item, qty) -> panier ; total(panier) -> number ; applyPromo(panier, code) -> panier ; PROMOS (objet)"
+    },
+    "notes": "Un item est { id, nom, prix }. Le panier est un objet simple, jamais muté sur place : chaque fonction retourne un nouveau panier."
+  },
+  "steps": [
+    {
+      "id": "1.1",
+      "title": "Créer un panier vide",
+      "explanation": "On commence par la structure de données. Un choix important ici : le panier est **immuable**. Aucune fonction ne modifie le panier reçu, elles en retournent une copie modifiée.\n\nC'est plus verbeux, mais ça évite la catégorie de bugs la plus pénible en front : deux composants qui partagent le même objet et se marchent dessus. Le prix à payer est un `...spread` de temps en temps.",
+      "expected": {
+        "files": [
+          "src/panier.js"
+        ],
+        "contract": "export function createPanier(): { lignes: [], promo: null }",
+        "acceptance": [
+          "Retourne un objet avec une propriété `lignes` qui est un tableau vide",
+          "Retourne une propriété `promo` valant null",
+          "Deux appels retournent deux objets distincts"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.1.spec.js",
+        "grep": "step 1.1",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { createPanier } from '../../src/panier.js'\n\ndescribe('step 1.1 — panier vide', () => {\n  it('a des lignes vides et aucune promo', () => {\n    const p = createPanier()\n    expect(p.lignes).toEqual([])\n    expect(p.promo).toBeNull()\n  })\n\n  it('retourne un nouvel objet à chaque appel', () => {\n    expect(createPanier()).not.toBe(createPanier())\n  })\n})\n"
+      },
+      "hints": [
+        "Le deuxième test échoue si tu retournes une constante définie en dehors de la fonction.",
+        "La fonction doit construire l'objet littéral à l'intérieur de son corps."
+      ],
+      "solution": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n"
+      }
+    },
+    {
+      "id": "1.2",
+      "title": "Ajouter un article",
+      "explanation": "`addItem` reçoit un panier et retourne un nouveau panier avec l'article en plus. Le point subtil : si l'article est déjà présent, on n'ajoute pas une deuxième ligne, on augmente la quantité de la ligne existante.\n\nC'est le comportement que tout le monde attend d'un panier, et c'est presque toujours oublié à la première implémentation.",
+      "expected": {
+        "files": [
+          "src/panier.js"
+        ],
+        "contract": "export function addItem(panier, item, qty = 1)",
+        "acceptance": [
+          "Ajoute une ligne { item, qty } si l'article est absent",
+          "Incrémente qty si un article de même id est déjà présent",
+          "Ne modifie pas le panier passé en argument"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.2.spec.js",
+        "grep": "step 1.2",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { createPanier, addItem } from '../../src/panier.js'\n\nconst pomme = { id: 'a', nom: 'Pomme', prix: 2 }\n\ndescribe('step 1.2 — ajout', () => {\n  it('ajoute une ligne', () => {\n    const p = addItem(createPanier(), pomme, 3)\n    expect(p.lignes).toHaveLength(1)\n    expect(p.lignes[0].qty).toBe(3)\n    expect(p.lignes[0].item.id).toBe('a')\n  })\n\n  it('regroupe le même article', () => {\n    let p = addItem(createPanier(), pomme, 1)\n    p = addItem(p, pomme, 2)\n    expect(p.lignes).toHaveLength(1)\n    expect(p.lignes[0].qty).toBe(3)\n  })\n\n  it('ne mute pas l entrée', () => {\n    const vide = createPanier()\n    addItem(vide, pomme, 1)\n    expect(vide.lignes).toHaveLength(0)\n  })\n})\n"
+      },
+      "hints": [
+        "Commence par chercher si une ligne correspond à l'id de l'article.",
+        "`findIndex` te dit où elle est, ou -1 si absente.",
+        "Pour le cas 'déjà présent', `map` sur les lignes en remplaçant celle qui matche est plus court qu'un splice."
+      ],
+      "solution": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n"
+      }
+    },
+    {
+      "id": "1.3",
+      "title": "Calculer le total",
+      "explanation": "Une somme sur les lignes. L'occasion d'utiliser `reduce`, qui est l'outil naturel dès qu'on veut réduire une liste à une seule valeur.\n\nAttention au piège des centimes : `0.1 + 0.2` ne fait pas `0.3` en JavaScript. Le test t'oblige à arrondir à deux décimales.",
+      "expected": {
+        "files": [
+          "src/panier.js"
+        ],
+        "contract": "export function total(panier): number",
+        "acceptance": [
+          "Retourne 0 pour un panier vide",
+          "Somme prix × qty de chaque ligne",
+          "Arrondi à deux décimales"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.3.spec.js",
+        "grep": "step 1.3",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { createPanier, addItem, total } from '../../src/panier.js'\n\ndescribe('step 1.3 — total', () => {\n  it('vaut 0 sur un panier vide', () => {\n    expect(total(createPanier())).toBe(0)\n  })\n\n  it('somme les lignes', () => {\n    let p = addItem(createPanier(), { id: 'a', nom: 'Pomme', prix: 2.5 }, 2)\n    p = addItem(p, { id: 'b', nom: 'Pain', prix: 1.2 }, 3)\n    expect(total(p)).toBe(8.6)\n  })\n\n  it('arrondit correctement', () => {\n    const p = addItem(createPanier(), { id: 'c', nom: 'X', prix: 0.1 }, 3)\n    expect(total(p)).toBe(0.3)\n  })\n})\n"
+      },
+      "hints": [
+        "`reduce` prend un accumulateur et une valeur initiale : `lignes.reduce((acc, l) => ..., 0)`.",
+        "Sans arrondi, le troisième test te renvoie 0.30000000000000004.",
+        "`Math.round(x * 100) / 100` suffit ici."
+      ],
+      "solution": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function total(panier) {\n  const brut = panier.lignes.reduce((acc, l) => acc + l.item.prix * l.qty, 0)\n  return Math.round(brut * 100) / 100\n}\n"
+      }
+    },
+    {
+      "id": "1.4",
+      "title": "Déclarer les codes promo",
+      "explanation": "Avant d'appliquer une remise, il faut savoir lesquelles existent. On les met dans un objet exporté, indexé par code.\n\nPourquoi un objet et pas une suite de `if` dans `applyPromo` ? Parce qu'ajouter un code promo devient une ligne de données au lieu d'une modification de logique. C'est la différence entre du code qu'on étend et du code qu'on rouvre à chaque changement.",
+      "expected": {
+        "files": [
+          "src/panier.js"
+        ],
+        "contract": "export const PROMOS = { CODE: { type: 'percent'|'fixed', valeur: number } }",
+        "acceptance": [
+          "PROMO10 est une remise de type percent, valeur 10",
+          "MOINS5 est une remise de type fixed, valeur 5"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.4.spec.js",
+        "grep": "step 1.4",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { PROMOS } from '../../src/panier.js'\n\ndescribe('step 1.4 — codes promo', () => {\n  it('expose PROMO10 en pourcentage', () => {\n    expect(PROMOS.PROMO10).toEqual({ type: 'percent', valeur: 10 })\n  })\n\n  it('expose MOINS5 en montant fixe', () => {\n    expect(PROMOS.MOINS5).toEqual({ type: 'fixed', valeur: 5 })\n  })\n})\n"
+      },
+      "hints": [
+        "C'est une simple constante exportée, pas une fonction.",
+        "Les clés sont les codes eux-mêmes."
+      ],
+      "solution": {
+        "src/panier.js": "// ... createPanier, addItem, total inchangés ...\n\nexport const PROMOS = {\n  PROMO10: { type: 'percent', valeur: 10 },\n  MOINS5: { type: 'fixed', valeur: 5 },\n}\n"
+      }
+    },
+    {
+      "id": "1.5",
+      "title": "Appliquer la remise",
+      "explanation": "Dernière étape, et la plus riche. `applyPromo` valide le code puis le stocke, et `total` doit maintenant en tenir compte.\n\nDeux règles métier que les tests imposent : un code inconnu est ignoré silencieusement plutôt que de lever une exception, et un total ne descend jamais sous zéro. Ce genre de garde-fou est ce qui sépare une fonction qui marche en démo d'une fonction qui tient en production.",
+      "expected": {
+        "files": [
+          "src/panier.js"
+        ],
+        "contract": "export function applyPromo(panier, code) ; total() tient compte de panier.promo",
+        "acceptance": [
+          "Un code valide est stocké dans panier.promo",
+          "Un code inconnu laisse promo à null",
+          "percent réduit du pourcentage, fixed soustrait le montant",
+          "Le total ne peut pas être négatif"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.5.spec.js",
+        "grep": "step 1.5",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { createPanier, addItem, total, applyPromo } from '../../src/panier.js'\n\nconst plein = () => addItem(createPanier(), { id: 'a', nom: 'X', prix: 10 }, 2)\n\ndescribe('step 1.5 — promo', () => {\n  it('stocke un code valide', () => {\n    expect(applyPromo(plein(), 'PROMO10').promo).toBe('PROMO10')\n  })\n\n  it('ignore un code inconnu', () => {\n    expect(applyPromo(plein(), 'NIMPORTEQUOI').promo).toBeNull()\n  })\n\n  it('applique un pourcentage', () => {\n    expect(total(applyPromo(plein(), 'PROMO10'))).toBe(18)\n  })\n\n  it('applique un montant fixe', () => {\n    expect(total(applyPromo(plein(), 'MOINS5'))).toBe(15)\n  })\n\n  it('ne descend jamais sous zéro', () => {\n    const petit = addItem(createPanier(), { id: 'b', nom: 'Y', prix: 1 }, 1)\n    expect(total(applyPromo(petit, 'MOINS5'))).toBe(0)\n  })\n})\n"
+      },
+      "hints": [
+        "`applyPromo` ne calcule rien, elle valide et stocke. Le calcul reste dans `total`.",
+        "Pour valider : le code existe-t-il comme clé de PROMOS ?",
+        "Dans `total`, calcule le brut d'abord, puis applique la remise, puis `Math.max(0, ...)`, puis l'arrondi."
+      ],
+      "solution": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport const PROMOS = {\n  PROMO10: { type: 'percent', valeur: 10 },\n  MOINS5: { type: 'fixed', valeur: 5 },\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function applyPromo(panier, code) {\n  return { ...panier, promo: PROMOS[code] ? code : null }\n}\n\nexport function total(panier) {\n  const brut = panier.lignes.reduce((acc, l) => acc + l.item.prix * l.qty, 0)\n  const promo = panier.promo ? PROMOS[panier.promo] : null\n  let net = brut\n  if (promo?.type === 'percent') net = brut * (1 - promo.valeur / 100)\n  if (promo?.type === 'fixed') net = brut - promo.valeur\n  return Math.round(Math.max(0, net) * 100) / 100\n}\n"
+      }
+    }
+  ]
+}

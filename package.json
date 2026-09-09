@@ -2,9 +2,32 @@
   "name": "learnpath",
   "displayName": "LearnPath",
   "description": "Joue des parcours d'apprentissage guidés dans ton propre projet",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
-  "publisher": "TODO",
+  "publisher": "Palawizard",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Palawizard/learnpath.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Palawizard/learnpath/issues"
+  },
+  "homepage": "https://github.com/Palawizard/learnpath#readme",
+  "keywords": [
+    "learning",
+    "tutorial",
+    "exercises",
+    "vitest",
+    "testing",
+    "education",
+    "tdd",
+    "open-vsx"
+  ],
+  "galleryBanner": {
+    "color": "#1E212B",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -52,17 +75,21 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc --noEmit && node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "markdown-it": "^14.3.1"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "typescript": "^5.5.0",
     "vitest": "^4.1.11"

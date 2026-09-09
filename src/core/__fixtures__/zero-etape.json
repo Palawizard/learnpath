@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "slug": "panier",
+  "title": "Un panier d'achat avec total et remises",
+  "intro": "On construit un panier utilisable dans une boutique : ajouter des articles, calculer un total, appliquer un code promo. Cinq étapes. À chaque étape tu écris le code, tu sauvegardes, et ça passe tout seul à la suite quand c'est bon.",
+  "runner": {
+    "kind": "vitest",
+    "cwd": ".",
+    "setup": [
+      "npm i -D vitest"
+    ]
+  },
+  "contract": {
+    "files": {
+      "src/panier.js": "createPanier() -> panier ; addItem(panier, item, qty) -> panier ; total(panier) -> number ; applyPromo(panier, code) -> panier ; PROMOS (objet)"
+    },
+    "notes": "Un item est { id, nom, prix }. Le panier est un objet simple, jamais muté sur place : chaque fonction retourne un nouveau panier."
+  },
+  "steps": []
+}

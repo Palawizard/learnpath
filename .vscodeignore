@@ -1,9 +1,18 @@
 .vscode/**
+.github/**
 src/**
 docs/**
 examples/**
 webview-ui/**
 node_modules/**
+# Le schéma JSON est importé par src/core/parcours.ts, donc déjà dans dist/extension.js.
+# L'embarquer en plus ferait partir deux copies.
+schema/**
 esbuild.js
 tsconfig.json
+vitest.config.mts
+package-lock.json
+AGENTS.md
+CLAUDE.md
+.gitignore
 **/*.map

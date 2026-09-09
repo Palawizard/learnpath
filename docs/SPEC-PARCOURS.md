@@ -12,7 +12,7 @@ Cible du prototype : JS/TS + Vitest, 5 à 10 étapes par fonctionnalité.
   tests/
     step-1.1.spec.ts       <- écrits sur disque à l'import
     step-1.2.spec.ts
-  vitest.config.ts         <- config isolée, ne touche pas celle du projet
+  vitest.config.mts        <- config isolée, ne touche pas celle du projet
   state.json               <- progression (gitignoré)
 ```
 
@@ -29,11 +29,10 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
   "intro": "Markdown. Ce qu'on va construire et pourquoi.",
 
   "runner": {
-    "kind": "vitest",
-    "command": "npx vitest run --config .learn/vitest.config.ts --reporter=json --outputFile=.learn/.result.json",
-    "filterFlag": "-t",          // filtre par nom de test
+    "kind": "vitest",            // seule valeur admise ; la commande est construite
+                                 // par l'extension, pas fournie par le parcours (D14)
     "cwd": ".",
-    "setup": ["npm i -D vitest"] // joué une seule fois à l'import
+    "setup": ["npm i -D vitest"] // joué une seule fois à l'import, liste blanche (D8)
   },
 
   "contract": {
@@ -86,8 +85,11 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
 4. **Régression cumulative.** À l'étape N, l'extension relance aussi les tests des
    étapes 1..N-1. Le générateur doit donc écrire des tests qui restent verts quand
    le code grossit.
-5. **La solution est du code complet du fichier**, pas un diff, pour pouvoir
-   l'afficher tel quel.
+5. **La solution est le contenu complet et fonctionnel du fichier à ce stade**, jamais un
+   extrait, jamais un commentaire de continuité (`// ... le reste inchangé ...`). Elle est
+   écrite telle quelle sur le disque de l'étudiant : si elle ne contient que la nouveauté
+   de l'étape, elle efface le travail des étapes précédentes. C'est le mode de défaillance
+   le plus fréquent du contenu généré, et l'import le refuse (D21).
 6. **5 à 10 étapes.** Une étape = une idée. Si une étape demande plus de ~15 lignes
    à l'étudiant, la couper en deux.
 
@@ -100,16 +102,26 @@ C'est le garde-fou le plus important, il attrape les parcours bidons :
 3. **Chaque étape doit être rouge.** Une étape déjà verte avant que l'étudiant ait
    écrit quoi que ce soit = test vide ou tautologique -> refuser l'import et
    nommer l'étape fautive.
-4. Optionnel mais utile : appliquer les `solution` de toutes les étapes dans un
-   dossier temporaire et vérifier que tout passe au vert. Si la solution du
-   générateur ne passe pas ses propres tests, l'étudiant n'a aucune chance.
+4. **Appliquer les `solution` étape par étape dans une copie temporaire du workspace**, et
+   après chaque étape N exiger que les étapes 1..N soient **toutes vertes**. Deux fautes
+   distinctes sont attrapées là, et nommées différemment :
+   - la solution de l'étape N ne passe pas ses propres tests — l'étudiant n'a aucune chance ;
+   - la solution de l'étape N casse une étape précédente — elle n'était pas le contenu
+     complet du fichier.
+   Ça coûte un run de tests par étape (mesuré : environ 0,8 s par étape sur le parcours
+   panier, cinq étapes). Ce n'est pas optionnel : c'est ce qui distingue un parcours
+   jouable d'un parcours qui bloque l'étudiant à l'étape 4.
 
 ## Boucle d'exécution
 
 - `onDidSaveTextDocument`, filtré sur `steps[current].expected.files`, debounce 500ms.
 - Commande manuelle de relance en secours (l'étudiant sauvegardera ailleurs).
-- Lancer `command + filterFlag + "step <id>"`, plus les ids précédents en régression.
-- Parser `.learn/.result.json`, pas stdout.
+- La commande est construite par l'extension depuis `runner.kind` (D14) :
+  `npx vitest run --config .learn/vitest.config.mts --reporter=json --outputFile=<temporaire>`.
+- Filtre `-t "step <id>"`, plus les ids précédents en régression. Vitest interprète `-t`
+  comme une expression régulière : les ids sont échappés et joints par `|`.
+- Parser le fichier de sortie, pas stdout. Il est écrit dans un temporaire propre à chaque
+  run, jamais dans un chemin fixe partagé.
 
 Trois états rouges à distinguer dans l'UI :
 
@@ -147,10 +159,18 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 > - Les tests des étapes précédentes doivent rester verts quand le code grossit
 > - `explanation` explique le POURQUOI et ne contient jamais la solution
 > - `hints` va du plus vague au plus précis, sans donner le code
-> - `solution` contient le contenu complet du fichier à ce stade
+> - `solution` contient le **contenu complet et fonctionnel du fichier à ce stade** :
+>   tout ce que les étapes précédentes ont fait écrire y est encore, en entier. Jamais un
+>   extrait, jamais `// ... le reste inchangé ...` : ce texte est écrit tel quel sur le
+>   disque de l'étudiant et remplace le fichier
+> - `runner` ne contient que `kind` (`"vitest"`), `cwd` et `setup`. N'invente ni
+>   `command` ni `filterFlag` : la commande de test est construite par l'extension et ces
+>   champs sont refusés par le schéma. `setup` ne peut commencer que par npm, npx, pnpm
+>   ou yarn.
 >
 > Avant de me rendre le JSON, vérifie toi-même :
 > 1. chaque test échoue sur le projet actuel
-> 2. l'ensemble des solutions appliquées dans l'ordre fait passer tous les tests
+> 2. les solutions appliquées **dans l'ordre** font passer, après chaque étape N, les
+>    tests des étapes 1 à N — pas seulement ceux de l'étape N
 >
 > Écris le résultat dans `.learn/parcours/<slug>.json`.

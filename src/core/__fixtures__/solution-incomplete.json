@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "slug": "incomplet",
+  "title": "Une solution qui ne passe pas ses propres tests",
+  "runner": {
+    "kind": "vitest",
+    "cwd": "."
+  },
+  "steps": [
+    {
+      "id": "1.1",
+      "title": "Additionner",
+      "explanation": "Écris `add` dans `src/calc.js`.",
+      "expected": {
+        "files": [
+          "src/calc.js"
+        ],
+        "contract": "export function add(a, b): number",
+        "acceptance": [
+          "add(1, 2) vaut 3"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.1.spec.js",
+        "grep": "step 1.1",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { add } from '../../src/calc.js'\n\ndescribe('step 1.1 add', () => {\n  it('add calcule le bon résultat', () => {\n    expect(add(1, 2)).toBe(3)\n  })\n})\n"
+      },
+      "hints": [
+        "Une seule ligne suffit."
+      ],
+      "solution": {
+        "src/calc.js": "export function add(a, b) {\n  return a + b\n}\n"
+      }
+    },
+    {
+      "id": "1.2",
+      "title": "Multiplier",
+      "explanation": "Écris `mul` dans `src/calc.js`.",
+      "expected": {
+        "files": [
+          "src/calc.js"
+        ],
+        "contract": "export function mul(a, b): number",
+        "acceptance": [
+          "mul(2, 3) vaut 6"
+        ]
+      },
+      "tests": {
+        "file": ".learn/tests/step-1.2.spec.js",
+        "grep": "step 1.2",
+        "content": "import { describe, it, expect } from 'vitest'\nimport { mul } from '../../src/calc.js'\n\ndescribe('step 1.2 mul', () => {\n  it('mul calcule le bon résultat', () => {\n    expect(mul(2, 3)).toBe(6)\n  })\n})\n"
+      },
+      "hints": [
+        "Une seule ligne suffit."
+      ],
+      "solution": {
+        "src/calc.js": "export function add(a, b) {\n  return a + b\n}\n\nexport function mul(a, b) {\n  return a + b\n}\n"
+      }
+    }
+  ]
+}

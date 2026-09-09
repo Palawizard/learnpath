@@ -11,6 +11,9 @@ const options = {
   platform: 'node',
   target: 'node18',
   sourcemap: true,
+  // Le VSIX embarque ajv et markdown-it : sans minification le bundle fait 600 ko.
+  // La source map, elle, ne part pas dans le paquet (.vscodeignore).
+  minify: !watch,
   logLevel: 'info',
 }
 

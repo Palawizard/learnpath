@@ -1,11 +1,107 @@
 {
-  "$comment": "STUB — à écrire au Lot 1. Doit couvrir l'intégralité de docs/SPEC-PARCOURS.md, y compris les contraintes: ids d'étapes uniques, entre 1 et 20 étapes, tests.grep non vide, aucun chemin absolu ni '..' dans tests.file / expected.files / solution.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://learnpath.dev/schema/parcours.schema.json",
   "title": "Parcours LearnPath",
+  "description": "Format v1 d'un parcours d'apprentissage, voir docs/SPEC-PARCOURS.md. Les règles qu'un schéma ne peut pas exprimer (unicité des ids, cohérence grep/id, chemins sûrs, liste blanche des commandes de setup) sont vérifiées par src/core/parcours.ts.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["version", "slug", "title", "runner", "steps"],
   "properties": {
-    "version": { "const": 1 }
+    "version": { "const": 1 },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "intro": { "type": "string" },
+    "runner": { "$ref": "#/$defs/runner" },
+    "contract": { "$ref": "#/$defs/contract" },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["vitest"] },
+        "cwd": { "type": "string", "minLength": 1 },
+        "setup": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files"],
+      "properties": {
+        "files": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "explanation", "expected", "tests", "solution"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 32
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "explanation": { "type": "string", "minLength": 1 },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files"],
+          "properties": {
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "contract": { "type": "string" },
+            "acceptance": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "grep", "content"],
+          "properties": {
+            "file": { "type": "string", "minLength": 1 },
+            "grep": { "type": "string", "minLength": 1 },
+            "content": { "type": "string", "minLength": 1 }
+          }
+        },
+        "hints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "solution": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
   }
 }
