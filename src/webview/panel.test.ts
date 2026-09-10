@@ -132,7 +132,7 @@ describe('renderStatus — les trois rouges', () => {
     expect(renderStatus(model())).toBe('')
   })
 
-  it('parse-error : discret, jamais la classe failed', () => {
+  it('collect-error : discret, jamais la classe failed', () => {
     const html = renderStatus(
       model({
         status: {

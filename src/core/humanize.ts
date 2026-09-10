@@ -1,3 +1,5 @@
+import type { State } from '../runner/classify.js'
+
 /**
  * Traduction des formes d'erreur Vitest les plus fréquentes. Trois règles, dans cet ordre
  * d'importance :
@@ -5,13 +7,37 @@
  * 1. le message brut reste **toujours** visible sous la traduction, jamais remplacé ;
  * 2. une forme non reconnue n'est ni masquée ni reformulée — on retourne `undefined` et
  *    l'affichage montre le brut, seul ;
- * 3. on ne devine jamais l'intention. Ce qui n'est pas dans le message n'est pas dit.
+ * 3. on ne devine jamais l'intention. Ce qui n'est pas dans le message n'est pas dit ;
+ * 4. **la même forme brute ne veut pas dire la même chose selon la phase** (D32). « Cannot
+ *    read properties of undefined » pendant l'exécution d'un test parle du code de
+ *    l'étudiant ; à la collecte, il parle de l'outillage — traduire enverrait chercher au
+ *    mauvais endroit. Chaque règle déclare donc les phases où elle s'applique, et dans le
+ *    doute on ne traduit pas.
  *
  * Les formes viennent de `src/runner/__fixtures__/g-messages-frequents.json`, qui est une
  * vraie sortie de Vitest, pas un message écrit à la main.
  */
 
-const RULES: readonly { readonly match: RegExp; readonly say: (m: RegExpExecArray) => string }[] = [
+/**
+ * `collect` : Vitest lit le fichier de test et enregistre les tests. Une erreur ici vient
+ * du fichier de test, de la config ou de l'outillage — aucun test n'a tourné.
+ * `run` : un test s'exécute. Une erreur ici parle du code testé.
+ */
+export type Phase = 'collect' | 'run'
+
+/** La phase se lit dans la classification : seule une assertion vient de l'exécution. */
+export function phaseOf(state: State): Phase {
+  return state === 'assertion-failed' ? 'run' : 'collect'
+}
+
+interface Rule {
+  readonly match: RegExp
+  readonly say: (m: RegExpExecArray) => string
+  /** Phases où cette forme a le sens qu'on lui donne. Ailleurs, on laisse le brut. */
+  readonly phases: readonly Phase[]
+}
+
+const RULES: readonly Rule[] = [
   {
     // Un export manquant ne dit pas « does not provide an export named » : la
     // transformation SSR le fait ressortir ici aussi. On ne tranche donc pas entre les
@@ -21,26 +47,42 @@ const RULES: readonly { readonly match: RegExp; readonly say: (m: RegExpExecArra
     match: /^(?:TypeError: )?\(?0 , (?:__vite_ssr_import_\d+__\.)?([A-Za-z_$][\w$]*)\)? is not a function/m,
     say: (m) =>
       `« ${m[1]} » n'est pas une fonction : soit le module ne l'exporte pas encore, soit ce qui est exporté sous ce nom n'est pas une fonction.`,
+    phases: ['run'],
   },
   {
     match: /^(?:TypeError: )?([\w$.]+) is not a function/m,
     say: (m) => `« ${m[1]} » n'est pas une fonction à cet endroit.`,
+    phases: ['run'],
   },
   {
     match: /Cannot find module ['"]([^'"]+)['"]/,
     say: (m) => `Le module « ${m[1]} » est introuvable : ce fichier n'existe pas encore, ou le chemin ne correspond pas.`,
+    phases: ['collect', 'run'],
   },
   {
     match: /Cannot read properties of (undefined|null) \(reading ['"]([^'"]+)['"]\)/,
     say: (m) => `Une valeur vaut ${m[1]} là où un objet est attendu ; c'est en lisant « ${m[2]} » que ça casse.`,
+    phases: ['run'],
   },
   {
     match: /^AssertionError: expected ([\s\S]+?) to (?:deeply equal|strictly equal|be) ([^\n]+)$/m,
     say: (m) => `Obtenu : ${m[1]}\nAttendu : ${trimNote(m[2] ?? '')}`,
+    phases: ['run'],
+  },
+  {
+    // Vitest ne trouve pas de suite courante quand `it()` est appelé hors de tout
+    // `describe()`, ou quand le callback d'un `describe()` est `async` : le fichier ne se
+    // collecte pas. Le message brut parle d'un bug de Vitest, ce qui envoie l'utilisateur
+    // dans le mur.
+    match: /failed to find the current suite/i,
+    say: () =>
+      `Ce fichier de test est mal formé : un it() se trouve en dehors d'un describe(), ou le callback d'un describe() est asynchrone. Aucun test n'a été collecté, donc aucun n'a été exécuté.`,
+    phases: ['collect'],
   },
   {
     match: /Failed to parse source for import analysis/,
     say: () => `Le fichier n'est pas du JavaScript valide : Vitest n'a pas réussi à le lire, aucun test n'a donc été exécuté.`,
+    phases: ['collect'],
   },
   {
     // Vitest 4 perd le texte « Test timed out in Xms » dans son rapport JSON : il ne reste
@@ -48,17 +90,19 @@ const RULES: readonly { readonly match: RegExp; readonly say: (m: RegExpExecArra
     match: /^Error: STACK_TRACE_ERROR/m,
     say: () =>
       `Le test a dépassé son délai et a été interrompu. Le rapport JSON de Vitest ne donne pas la durée ; en général une promesse n'est jamais résolue, ou un « await » manque.`,
+    phases: ['run'],
   },
 ]
 
 /**
- * Retourne une explication en français, ou `undefined` si la forme n'est pas reconnue.
- * L'appelant garde le message brut dans tous les cas.
+ * Retourne une explication en français, ou `undefined` si la forme n'est pas reconnue
+ * **dans cette phase**. L'appelant garde le message brut dans tous les cas.
  */
-export function humanize(raw: string): string | undefined {
+export function humanize(raw: string, phase: Phase): string | undefined {
   const message = raw.trim()
   if (message === '') return undefined
   for (const rule of RULES) {
+    if (!rule.phases.includes(phase)) continue
     const found = rule.match.exec(message)
     if (found !== null) return rule.say(found)
   }

@@ -17,6 +17,11 @@ export interface RunOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000
+/**
+ * Borne de la stderr conservée. On coupe **en queue**, pas en tête : la ligne qui nomme la
+ * cause est en haut de la stack, c'est la fin qui est jetable.
+ */
+const STDERR_MAX = 32_000
 const CONFIG = '.learn/vitest.config.mts'
 
 /**
@@ -59,7 +64,10 @@ export async function run(
     }
     const parsed = parseResult(content)
     if (!parsed.ok) return err(`${parsed.error}.${detail(spawned.value)}`)
-    return parsed
+    // La stderr est conservée entière, même quand le rapport est lisible : une collecte
+    // qui casse sur la config ou sur un plugin n'écrit rien dans le rapport, sa stack
+    // n'existe qu'ici. La tronquer, c'est perdre le seul diagnostic disponible.
+    return ok({ ...parsed.value, stderr: spawned.value.stderr })
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
   }
@@ -99,7 +107,7 @@ function spawnVitest(
 
     let stderr = ''
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr = `${stderr}${chunk.toString()}`.slice(-4000)
+      if (stderr.length < STDERR_MAX) stderr = `${stderr}${chunk.toString()}`.slice(0, STDERR_MAX)
     })
     child.on('error', (error) =>
       resolve(
@@ -122,7 +130,9 @@ function spawnVitest(
   })
 }
 
+/** La stderr entière (bornée à la capture), pas ses cinq dernières lignes : la ligne qui
+ * nomme la cause est presque toujours au-dessus de la stack. */
 function detail(outcome: Outcome): string {
-  const tail = outcome.stderr.trim().split('\n').slice(-5).join('\n')
-  return tail === '' ? ` Code de sortie ${outcome.code ?? 'inconnu'}.` : `\n${tail}`
+  const out = outcome.stderr.trim()
+  return out === '' ? ` Code de sortie ${outcome.code ?? 'inconnu'}.` : `\n${out}`
 }

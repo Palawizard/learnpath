@@ -49,6 +49,23 @@ describe('verifyAllRed', () => {
     if (!r.ok) expect(r.error).toContain('« 1.5 — ')
   })
 
+  // D33 : le trou que ce module avait. `b-syntaxe-invalide` est une vraie sortie Vitest où
+  // les cinq fichiers échouent à la collecte : zéro test exécuté, zéro assertion. L'ancienne
+  // version n'y voyait aucune étape « pass » et concluait au vert — la garantie « chaque
+  // étape échoue avant écriture » passait sur un parcours dont rien ne s'exécute.
+  it("rejette un parcours dont aucun test ne se collecte, au lieu de le compter rouge", async () => {
+    const r = await verifyAllRed(parcours('examples/exemple-panier.json'), root, () =>
+      Promise.resolve(ok(fixture('b-syntaxe-invalide')))
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.error).toContain("aucun test de l'étape « 1.1 — ")
+      expect(r.error).toContain("n'a été collecté")
+      // Aucune étape n'a été évaluée : on ne désigne pas le fichier de test.
+      expect(r.error).toContain('cause indéterminée')
+    }
+  })
+
   it('remonte un échec de lancement au lieu de conclure au vert', async () => {
     const r = await verifyAllRed(parcours('examples/exemple-panier.json'), root, () =>
       Promise.resolve(err("Vitest n'a produit aucun rapport."))
@@ -65,7 +82,7 @@ describe('verifyAllRed', () => {
 // le travail des étapes précédentes est bien vue comme telle. Une fausse sortie de Vitest
 // ne prouverait que la mise en forme du message.
 
-import { mkdtemp, mkdir, rm, writeFile, symlink, lstat, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, writeFile, readFile, symlink, lstat, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { importParcours } from './importer.js'
@@ -88,8 +105,13 @@ async function exists(target: string): Promise<boolean> {
   }
 }
 
-async function importFixture(name: string): Promise<{ ok: boolean; error?: string; learn: boolean }> {
+async function importFixture(
+  name: string,
+  prepare?: (dir: string) => Promise<void>,
+  inspect?: (dir: string) => Promise<void>
+): Promise<{ ok: boolean; error?: string }> {
   const dir = await workspace()
+  if (prepare !== undefined) await prepare(dir)
   try {
     const result = await importParcours(parcours(`src/core/__fixtures__/${name}.json`), dir, {
       confirm: () => Promise.resolve(true),
@@ -98,9 +120,10 @@ async function importFixture(name: string): Promise<{ ok: boolean; error?: strin
     return {
       ok: result.ok,
       ...(result.ok ? {} : { error: result.error }),
-      learn: await exists(path.join(dir, '.learn')),
     }
   } finally {
+    // Avant le nettoyage : le journal de diagnostic vit dans ce dossier.
+    if (inspect !== undefined) await inspect(dir)
     await rm(dir, { recursive: true, force: true })
   }
 }
@@ -116,8 +139,26 @@ describe('verifyAllGreen', { timeout: 120_000 }, () => {
     const r = await importFixture('solution-regressive')
     expect(r.ok).toBe(false)
     expect(r.error).toContain("la solution de l'étape « 1.2 — Multiplier » casse l'étape « 1.1 — Additionner »")
-    expect(r.error).toContain('Rien n\'a été conservé.')
-    expect(r.learn).toBe(false)
+    // D28 : le parcours reste, c'est justement le fichier que son auteur doit corriger.
+    expect(r.error).toContain('Le fichier de parcours est conservé')
+  })
+
+  // Point 3c : « la solution ne passe pas ses tests » et « le fichier de test ne se
+  // collecte pas » n'appellent pas la même correction. Le second ne met pas en cause la
+  // solution, qui est ici parfaitement juste.
+  //
+  // D33 : ce parcours est maintenant refusé par `verifyAllRed`, avant même qu'on arrive aux
+  // solutions — c'est le sens du point 1. Le message vient donc de là, et il ne dit plus
+  // que le fichier de test est mal formé : le fichier de l'étape 1.1 se collecte, celui de
+  // l'étape 1.2 non, c'est tout ce qu'on sait.
+  it("refuse un parcours dont un fichier de test ne se collecte pas, sans accuser la solution", async () => {
+    const r = await importFixture('test-mal-forme')
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain("aucun test de l'étape « 1.2 — Multiplier » n'a été collecté")
+    expect(r.error).toContain('la cause est dans ce fichier de test ou dans ce qu\'il importe')
+    expect(r.error).not.toContain('ne passe pas ses propres tests')
+    // Point 3 : la stack complète est conservée, et le message dit où.
+    expect(r.error).toContain('.learn/verify.log')
   })
 
   it("distingue la solution qui ne passe pas ses propres tests", async () => {
@@ -125,7 +166,57 @@ describe('verifyAllGreen', { timeout: 120_000 }, () => {
     expect(r.ok).toBe(false)
     expect(r.error).toContain("la solution de l'étape « 1.2 — Multiplier » ne passe pas ses propres tests")
     expect(r.error).not.toContain('casse')
-    expect(r.learn).toBe(false)
+  })
+})
+
+// --- D33 : le diagnostic est conservé, pas détruit -----------------------------------------
+//
+// Le message d'erreur ne porte que la première ligne. Ce qui a fait chercher au mauvais
+// endroit trois fois de suite, c'est que le reste était jeté. Il doit survivre — y compris
+// au rollback, qui supprime `.learn/` quand le dossier n'existait pas avant l'import.
+
+describe('journal de diagnostic (D33)', { timeout: 120_000 }, () => {
+  it("écrit la stack complète sous .learn/, et le rollback ne l'emporte pas", async () => {
+    let journal: string | undefined
+    const r = await importFixture('test-mal-forme', undefined, async (dir) => {
+      journal = await readFile(path.join(dir, '.learn', 'verify.log'), 'utf8').catch(() => undefined)
+    })
+
+    expect(r.ok).toBe(false)
+    expect(journal).toBeDefined()
+    // Plus que la première ligne : c'est tout l'intérêt.
+    expect((journal ?? '').split('\n').length).toBeGreaterThan(3)
+    expect(journal).toContain('1.2 — Multiplier')
+    expect(journal).toContain('invalid JS syntax')
+  })
+})
+
+// --- D31 : la config générée hérite de la config Vite du projet ---------------------------
+//
+// Vrai run Vitest : un alias déclaré dans le `vite.config.ts` du projet doit résoudre dans
+// les tests du parcours. C'est ce que la config autonome du lot 2 ne savait pas faire, et
+// c'est la même mécanique qui apporte @vitejs/plugin-react et jsdom à un projet React.
+
+describe("héritage de la config Vite du projet (D31)", { timeout: 120_000 }, () => {
+  const aliasConfig = [
+    "import { fileURLToPath } from 'node:url'",
+    'export default {',
+    "  resolve: { alias: { '@lib': fileURLToPath(new URL('./src', import.meta.url)) } },",
+    '}',
+  ].join('\n')
+
+  it("résout un alias du projet dans les tests du parcours", async () => {
+    const r = await importFixture('alias-vite', (dir) =>
+      writeFile(path.join(dir, 'vite.config.ts'), aliasConfig)
+    )
+    expect(r.error ?? '').toBe('')
+    expect(r.ok).toBe(true)
+  })
+
+  it("sans la config du projet, le même parcours ne résout rien : l'héritage n'est pas décoratif", async () => {
+    const r = await importFixture('alias-vite')
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('@lib/calc.js')
   })
 })
 

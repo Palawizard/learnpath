@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import * as path from 'node:path'
 import { loadParcours } from './core/parcours'
 import { importParcours } from './core/importer'
 import { removeParcours, restartParcours } from './core/reset'
@@ -10,6 +11,7 @@ let watcher: Watcher | undefined
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel('LearnPath')
+  mergeTerminalPath()
   context.subscriptions.push(
     output,
     { dispose: () => stopWatching() },
@@ -21,6 +23,27 @@ export function activate(context: vscode.ExtensionContext): void {
   // Le panneau s'ouvre tout seul quand il y a un parcours : c'est l'objet de l'extension.
   // `ParcoursPanel.show` ne prend pas le focus, l'utilisateur reste dans son éditeur.
   void startWatching().then(() => watcher?.show())
+}
+
+/**
+ * D29 : l'hôte d'extension n'a pas le PATH d'un terminal — avec nvm, fnm ou volta, `npm`
+ * marche dans le terminal et donne `spawn npm ENOENT` à l'import. `src/core` n'importe pas
+ * `vscode` : on ajoute donc ici, en queue de PATH, ce que l'utilisateur a réglé dans
+ * `terminal.integrated.env.*`, et la résolution de `exec.ts` le voit comme le reste. En
+ * queue : le PATH de l'hôte reste prioritaire.
+ */
+function mergeTerminalPath(): void {
+  const key = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux'
+  const env = vscode.workspace.getConfiguration('terminal.integrated.env').get<Record<string, string>>(key)
+  const extra = env?.['PATH'] ?? env?.['Path']
+  if (extra === undefined) return
+
+  const current = (process.env['PATH'] ?? '').split(path.delimiter)
+  const missing = extra
+    .split(path.delimiter)
+    .filter((dir) => dir !== '' && !dir.includes('${env:') && !current.includes(dir))
+  if (missing.length === 0) return
+  process.env['PATH'] = [...current, ...missing].join(path.delimiter)
 }
 
 export function deactivate(): void {
@@ -165,7 +188,11 @@ async function importCommand(): Promise<void> {
   })
 
   if (!result.ok) {
-    void vscode.window.showErrorMessage(`LearnPath — ${result.error}`)
+    // Le message peut être long (diagnostic de résolution de commande, D29) : la
+    // notification n'en montre qu'une ligne, la vue Sortie le donne en entier.
+    channel.appendLine(result.error)
+    channel.show(true)
+    void vscode.window.showErrorMessage(`LearnPath — ${result.error.split('\n')[0] ?? ''}`)
     return
   }
   void vscode.window.showInformationMessage(

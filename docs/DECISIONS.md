@@ -213,7 +213,8 @@ issues d'un JSON généré par un LLM.
 3. **Rollback** : refus utilisateur, échec d'une commande de setup ou échec d'écriture
    annulent l'import. Si `.learn/` n'existait pas, il est supprimé ; s'il existait, seuls
    les fichiers créés par cet import le sont — un `.learn/notes.md` de l'utilisateur
-   survit. Test dédié.
+   survit. Test dédié. *(Point 3 partiellement remplacé par D28 : le fichier de parcours
+   est désormais conservé par tous les chemins de rollback.)*
 4. **Écritures atomiques** : fichier temporaire puis `rename`. Un import interrompu ne
    laisse jamais un fichier de test à moitié écrit que Vitest tenterait de collecter.
 5. **`spawn` sans shell**, argv découpé sur les espaces. Deuxième barrière après la liste
@@ -726,3 +727,257 @@ actuel dit déjà ce qu'il faut faire (« une promesse n'est jamais résolue, ou
 manque ») ; seule la durée manque, et un étudiant qui tombe là-dessus n'en a pas besoin. La
 limite est notée dans le README, et la deuxième option est prête si le cas remonte pour de
 vrai.
+
+---
+
+## D28 — Le rollback conserve le fichier de parcours
+
+**Contexte.** Constaté au premier vrai usage : l'import échoue sur une commande de setup,
+le rollback nettoie `.learn/`, et `.learn/parcours/<slug>.json` part avec. L'utilisateur a
+perdu son parcours. Le prompt de génération demande justement à l'agent d'écrire là :
+**le fichier source et la cible de l'import sont le même fichier**.
+
+Le fichier de parcours est la seule chose non reproductible de tout le système. Les tests,
+la config, le `state.json` sont réécrits à l'identique au prochain import ; un LLM, lui, ne
+régénère jamais deux fois la même sortie. Le rollback détruisait exactement ce qu'il fallait
+préserver — et pour les deux vérifications (`verifyAllRed`, `verifyAllGreen`) c'est pire
+encore : le parcours est fautif, et son auteur en a besoin pour le corriger.
+
+**Décision.** `rollbackAll` met le contenu du fichier de parcours de côté avant de nettoyer
+et le repose ensuite. **Tous** les chemins de rollback, sans exception : échec d'écriture,
+refus de la confirmation, échec d'une commande de setup, `verifyAllRed`, `verifyAllGreen`.
+Le message d'échec dit où le fichier se trouve, en chemin relatif au workspace.
+
+Une seule règle plutôt qu'un drapeau à trois cas : annuler un import ne doit pas plus
+détruire le parcours qu'en rater un. Ça remplace le « rien n'est conservé » de D12.
+
+**Conséquences.**
+- Le message « Rien n'a été conservé. » devient « Le fichier de parcours est conservé, rien
+  d'autre : `.learn/parcours/<slug>.json`. » Il ne reste que lui — tests, config et
+  `state.json` sont bien supprimés, un `.learn/` préexistant est toujours respecté.
+- Après un échec, `.learn/parcours/` contient un parcours : réimporter le **même** slug
+  fonctionne, importer un **autre** slug tombe sur le refus de conflit de D12, qui dit quoi
+  faire. C'est le prix, et il est explicite.
+- Six tests de non-régression dans `importer.test.ts` : les trois échecs tardifs × (le
+  parcours survit / un `.learn/` préexistant survit), plus la réimportation.
+
+---
+
+## D29 — Résolution des commandes de setup : plus jamais un `spawn npm ENOENT` nu
+
+**Contexte.** Deuxième bug de lancement de processus du projet, après D18. Constaté :
+`learnpath.import` échoue avec « spawn npm ENOENT » alors que `npm` marche dans le
+terminal. Deux causes cumulées :
+
+1. l'hôte d'extension n'a pas le PATH d'un terminal (nvm, fnm, volta réglent le PATH par
+   session de shell), et son `process.execPath` est `Code.exe`, pas `node` ;
+2. la résolution de D18 cherchait, à côté d'un `npm.cmd` trouvé dans le PATH, un
+   `node_modules/npm/bin/npm.cjs|.js|.mjs`. **Ce fichier n'existe pas** : npm et volta
+   nomment leur CLI `npm-cli.js`. La résolution rendait donc la commande telle quelle et
+   `spawn` échouait. Reproduit avant correction avec un faux shim `pnpm.cmd` +
+   `node_modules/pnpm/bin/pnpm-cli.js` et un PATH réduit à ce dossier : ancienne
+   résolution `{"file":"pnpm"}` → `spawn pnpm ENOENT`.
+
+**Décision.**
+- Ordre de résolution, sur toutes les plateformes : le CLI livré avec le Node qui exécute
+  l'hôte (depuis `process.execPath`, `node_modules/` et `../lib/node_modules/`), puis le
+  PATH, puis — sous Windows — le `.cmd` du PATH traduit en son JS voisin, `<nom>-cli.js`
+  inclus. Jamais `shell: true` : D8 tient.
+- Le PATH du terminal intégré est la troisième source. `src/core` n'importe pas `vscode` :
+  `extension.ts` fusionne `terminal.integrated.env.<plateforme>.PATH` **en queue** de
+  `process.env.PATH` à l'activation, et la résolution le voit comme le reste.
+- `launcher` retourne `resolved` et `tried`. Quand rien n'aboutit, on n'essaie même pas de
+  lancer : `notFoundMessage` donne les chemins examinés, `process.execPath`, le PATH vu par
+  l'hôte, et **la sortie de secours** — lancer la commande à la main, puis réimporter avec
+  `"setup": []`. Le même message est rendu si le `spawn` échoue quand même en ENOENT/EINVAL.
+- L'import affiche désormais la vue Sortie sur échec : la notification ne montre qu'une
+  ligne, le diagnostic en fait dix.
+
+**Conséquences.** Un utilisateur bloqué a de quoi savoir ce qui a été cherché, et une issue
+sans nous. Vérifié en vrai sur `examples/demo-project` : import complet avec
+`npm i -D vitest` (11,9 s) et avec `pnpm add -D vitest` (9,0 s), et diagnostic complet avec
+`PATH` vidé.
+
+---
+
+## D30 — « La solution ne passe pas » et « le fichier de test ne se collecte pas » sont deux diagnostics
+
+**Contexte.** `verifyAllGreen` a refusé un vrai parcours avec « la solution de l'étape 1.1
+ne passe pas ses propres tests (Vitest failed to find the current suite) ». La vérification
+avait raison de refuser, mais le diagnostic était faux : la solution était juste, c'est le
+fichier de test qui était mal formé (un `it()` hors `describe()`, ou un `describe()`
+asynchrone) et aucun test n'avait été collecté. Le message envoyait l'auteur corriger le
+mauvais fichier.
+
+**Décision.** `verifyAllGreen` sépare les trois classifications que `classify` produit
+déjà : `assertion-failed` → la solution ne passe pas ses propres tests ; `parse-error` →
+le fichier de test ne s'exécute pas, aucun test collecté, la solution n'est pas en cause ;
+`missing-file` → la solution n'écrit pas le fichier attendu par ses tests. Le détail passe
+par `humanize`, qui apprend la forme « failed to find the current suite ».
+
+Côté amont, `SPEC-PARCOURS.md` gagne une section « Structure des tests » et le prompt
+distingue explicitement « le test échoue » de « le test ne s'exécute pas » : ce qu'on
+demande de vérifier avant de rendre le JSON, c'est d'abord que le fichier **se collecte**.
+
+**Conséquences.** Fixture `test-mal-forme.json` (un `describe()` jamais refermé, solution
+correcte) et un test qui exige que le message ne parle **pas** de la solution. La forme
+brute « Vitest failed to find the current suite » vient de Vitest 1 et 2 (`assert()` dans
+`@vitest/runner`) ; Vitest 3 et 4 l'ont remplacée par un message plus clair, mais les
+projets réels sont encore sur les versions précédentes.
+
+---
+
+## D31 — La config Vitest générée hérite du `vite.config.*` du projet
+
+**Contexte.** Premier parcours React réel, refusé à l'import : « le fichier de test de
+l'étape 1.1 ne s'exécute pas ». La config écrite par l'importer était celle du lot 2, faite
+pour du JS simple : pas de plugin, `environment: 'node'`. Reproduit sur deux vrais projets
+Vite React — `vite@8 / plugin-react@6 / React 19 / TS` et `vite@5 / plugin-react@4 /
+React 18` — avec un parcours qui monte un composant : les deux échouent sur
+`ReferenceError: document is not defined`. Le parcours demandait pourtant bien `jsdom` et
+`@testing-library/react` dans son `setup` ; la config générée n'en tenait aucun compte.
+
+**Décision.** Quand le projet a un `vite.config.{ts,mts,cts,js,mjs,cjs}` à sa racine, la
+config générée l'**importe** et fusionne avec `mergeConfig` :
+
+```ts
+import projet from '../vite.config.ts'
+export default defineConfig(async (env) => {
+  const resolu = typeof projet === 'function' ? await projet(env) : await projet
+  const { test: _test, ...base } = resolu
+  return mergeConfig(base, { root, cacheDir, test: { include, environment } })
+})
+```
+
+Trois points la définissent :
+
+1. **On hérite, on ne reconstruit pas.** Deviner « React → plugin-react, Vue → plugin-vue »
+   serait faux au prochain écosystème, et raterait de toute façon les alias, `resolve`, les
+   plugins maison. Le projet a déjà dit tout ça dans sa config Vite.
+2. **Le bloc `test` du projet est écarté.** C'est sa configuration de test : D3 la déclare
+   sacrée. La garder ajouterait ses `include` aux nôtres — `mergeConfig` concatène les
+   tableaux — et la vérification à l'import lancerait les tests du projet.
+3. **`vitest.config.*` n'est jamais lu**, pour la même raison. On ne lit que la config
+   *Vite*.
+
+L'environnement, lui, ne s'hérite pas : une config Vite ne contient pas de bloc `test`. Le
+format gagne donc `runner.environment` (`node | jsdom | happy-dom | edge-runtime`,
+optionnel). Absent, il est déduit de `runner.setup` : un parcours qui installe `jsdom` ou
+`happy-dom` en a besoin. C'est ce qui fait marcher, sans être régénérés, les parcours écrits
+avant cette décision — dont celui qui a remonté le bug.
+
+**Conséquences.**
+- Vérifié en vrai, import complet réussi : projet vanilla (`examples/demo-project`), Vite 8
+  + React 19 + TypeScript, et Vite 5 + React 18 + `@vitejs/plugin-react@4` + Vitest 1. La
+  même config générée tient sur des stacks séparées par trois majeures de Vite.
+- Test de non-régression avec un **vrai run** : un alias déclaré dans le `vite.config.ts`
+  du projet doit résoudre dans les tests du parcours, et le même parcours sans cette config
+  doit échouer. Le contrôle négatif est là pour que le test prouve l'héritage, pas la
+  présence d'une ligne dans un fichier.
+- On n'écrit toujours que `.learn/vitest.config.mts`, et on ne touche à rien d'autre.
+- Limite connue : un projet qui n'a **pas** de `vite.config.*` mais met ses plugins dans
+  `vitest.config.ts` n'hérite de rien. À rouvrir si le cas remonte ; l'inverse casserait
+  l'isolation des tests.
+
+---
+
+## D32 — `humanize` reçoit la phase : à la collecte, on ne traduit pas une erreur d'exécution
+
+**Contexte.** Le même import a affiché : « une valeur vaut undefined là où un objet est
+attendu ; c'est en lisant *config* que ça casse ». Vrai pour une erreur d'exécution dans le
+code de l'étudiant. Faux ici : l'erreur venait de la collecte, donc de l'outillage. La
+traduction envoyait chercher dans son fichier un problème qui était dans la config.
+
+**Décision.** Une même forme brute ne veut pas dire la même chose selon la phase. `humanize`
+prend un second argument, `'collect' | 'run'`, et chaque règle déclare les phases où elle
+s'applique :
+
+| Forme | Phases |
+|---|---|
+| `Cannot find module` | collecte et exécution |
+| `Failed to parse source`, `failed to find the current suite` | collecte |
+| `is not a function`, `Cannot read properties of undefined`, `AssertionError`, dépassement de délai | exécution |
+
+La phase n'est pas devinée : elle se lit dans la classification, `phaseOf(state)` — seul
+`assertion-failed` vient de l'exécution d'un test, tout le reste est de la collecte. Les
+deux appelants (`verify.ts`, `viewmodel.ts`) manipulaient déjà une `Classification`, ils ne
+passent donc aucune information nouvelle.
+
+**Conséquences.** Dans le doute, on ne traduit pas : une traduction fausse est pire qu'un
+message brut, elle envoie chercher au mauvais endroit. C'est la règle 4 de `humanize.ts`,
+à côté des trois autres. Le brut reste visible dans tous les cas, comme avant.
+
+---
+
+## D33 — « Rouge » veut dire collecté et en échec ; on n'invente pas la cause d'une collecte ratée
+
+**Contexte.** Un diagnostic externe a montré que trois garanties étaient fausses en même
+temps, et qu'elles avaient fait accuser le générateur à tort pendant trois essais.
+
+1. `verifyAllRed` ne cherchait que les étapes `pass`. Une étape dont **aucun test ne se
+   collecte** n'est pas `pass` : elle passait donc pour rouge. La garantie « chaque étape
+   échoue avant écriture » était vraie sur un parcours dont rien ne s'exécute — exactement
+   le parcours bidon que ce module existe pour attraper.
+2. `classify` rendait `parse-error` pour toute étape sans assertion collectée, et le
+   message de `verifyAllGreen` en concluait que le fichier de test était mal formé. La
+   spécification d'origine (D30) supposait que la collecte ne peut échouer que sur le code
+   de l'étudiant. C'est faux : la config Vite, un plugin ou le runner la cassent tout aussi
+   bien.
+3. Le diagnostic était détruit : le message ne gardait que la première ligne, le rapport
+   temporaire était supprimé, et la stderr du process était réduite à ses cinq dernières
+   lignes — or la ligne qui nomme la cause est en **haut** d'une stack.
+
+**Décision.**
+
+*Rouge se prouve.* `verifyAllRed` n'accepte une étape que dans deux états : `assertion-failed`
+(des tests ont été collectés et ils échouent) et `missing-file` (le fichier que l'étape
+demande d'écrire n'existe pas encore, ce qui est l'état normal avant l'exercice). Tout le
+reste est un échec de vérification **distinct**, avec son propre message : « aucun test de
+l'étape X n'a été collecté ; rien ne s'est exécuté, donc rien ne prouve que l'étape échoue ».
+
+*On ne nomme pas un coupable qu'on ne connaît pas.* `parse-error` devient `collect-error`,
+qui ne dit que ce qu'on sait. Le nom précédent affirmait la cause. Vérifié sur deux vraies
+sorties Vitest, le texte de l'erreur ne permet pas de trancher : un fichier de test mal formé
+(`__fixtures__/test-mal-forme`) et un fichier *importé* mal formé (`b-syntaxe-invalide`)
+produisent le **même** message, `Failed to parse source for import analysis…`, sans aucun
+chemin. Lire ce texte pour désigner un fichier, c'est deviner.
+
+La seule séparation honnête ne vient pas du texte mais du **run** : si une autre étape du
+même run a reçu un verdict, l'outillage marche et la cause est locale à ce fichier de test
+ou à ce qu'il importe ; si aucune étape n'a été évaluée, la cause est partagée — config,
+plugin, runner, ou un import commun — et on ne désigne personne. C'est `cause()` dans
+`verify.ts`, et c'est calculé là parce que c'est le seul endroit qui voit toutes les étapes.
+
+*La stack survit.* `RawResult` porte désormais la stderr du process, entière (bornée à
+32 ko **en queue**, pas en tête). En cas d'échec de vérification, tout part dans
+`.learn/verify.log` — message complet de chaque étape fautive, puis la stderr — et le
+message d'erreur donne ce chemin. Le rollback de l'import le préserve, pour la même raison
+que le fichier de parcours (D28) : le message le nomme, il ne doit pas pointer un fichier
+mort.
+
+**Trois bugs trouvés en appliquant la décision**, tous du même genre — une seule formulation
+connue là où le réel en a plusieurs :
+
+- **`Failed to resolve import "<spec>" from "<fichier>"`** est ce que produit **Vite 8** pour
+  un fichier pas encore écrit. `classify` ne connaissait que `Cannot find module`. Sur cette
+  pile, chaque étape non commencée sortait donc en erreur de collecte au lieu de « pas encore
+  commencée » — l'étudiant voyait « le fichier n'est pas encore valide » et un message brut de
+  Vite dès l'ouverture d'une étape, ce que UX.md interdit. Fixture réelle :
+  `h-import-non-resolu-vite8.json`.
+- **`Cannot find package '<spec>'`** est ce que produit Vite quand un **alias** du projet
+  pointe un fichier absent : la résolution retombe sur node, qui prend le spécificateur pour
+  un paquet. Même cause, troisième formulation.
+- Un spécificateur d'**alias** (`@lib/calc.js`) ne se compare pas à `expected.files` par
+  résolution de chemin — on ne connaît pas la table d'alias. On compare les noms de fichier.
+  C'est lâche, mais le pire cas est bénin (« étape pas commencée » au lieu d'une erreur), alors
+  que ne rien faire refuse un parcours valide. En contrepartie, `missing-file` porte désormais
+  le spécificateur non résolu dans un champ à part, `missing` — **hors** de `message`, qui
+  reste vide parce que l'étudiant n'a rien à lire sur une étape pas commencée. `verifyAllGreen`
+  s'en sert : une fois la solution écrite, « introuvable » ne veut plus dire « pas encore
+  écrit » mais « ne se résout pas », et le nom de l'alias est alors tout le diagnostic.
+
+**Conséquences.** Un message vague est meilleur qu'un message faux : le faux envoie chercher
+au mauvais endroit, ce qui vient de coûter trois essais. Les messages de `verify.ts` ne
+mettent plus la solution en cause quand rien ne prouve qu'elle l'est. D30 reste valide dans
+son intention — séparer les diagnostics — mais sa mise en œuvre affirmait plus que ce que les
+données permettent ; c'est ce que D33 corrige.

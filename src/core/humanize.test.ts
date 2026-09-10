@@ -20,10 +20,11 @@ function messages(name: string): Map<string, string> {
 
 const frequents = messages('g-messages-frequents')
 
+/** Ces messages viennent tous d'assertions en échec : phase « run ». */
 function traduction(clef: string): string {
   const raw = [...frequents].find(([name]) => name.includes(clef))?.[1]
   if (raw === undefined) throw new Error(`aucun message pour « ${clef} » dans la fixture`)
-  const human = humanize(raw)
+  const human = humanize(raw, 'run')
   if (human === undefined) throw new Error(`forme non reconnue : ${raw.split('\n')[0]}`)
   return human
 }
@@ -57,21 +58,51 @@ describe('humanize', () => {
 
   it('reconnaît le module introuvable sur la fixture du fichier pas encore créé', () => {
     const raw = [...messages('a-fichier-absent').values()][0]
-    expect(humanize(raw ?? '')).toContain('« ../../src/panier.js » est introuvable')
+    expect(humanize(raw ?? '', 'collect')).toContain('« ../../src/panier.js » est introuvable')
   })
 
   it('reconnaît la source illisible sur la fixture de syntaxe invalide', () => {
     const raw = [...messages('b-syntaxe-invalide').values()][0]
-    expect(humanize(raw ?? '')).toContain("n'est pas du JavaScript valide")
+    expect(humanize(raw ?? '', 'collect')).toContain("n'est pas du JavaScript valide")
+  })
+
+  // Texte relevé dans @vitest/runner (fonction `assert`, Vitest 1 et 2) : c'est ce que
+  // reçoit l'utilisateur quand un it() est hors describe() ou qu'un describe() est async.
+  // Vitest 3 et 4 l'ont remplacé par un message plus clair, mais les projets réels sont
+  // encore sur les versions précédentes — le parcours qui a remonté le bug l'était.
+  it('traduit le fichier de test mal formé, que le message brut attribue à un bug de Vitest', () => {
+    const raw =
+      'Error: Vitest failed to find the current suite. This is a bug in Vitest. Please, open an issue with reproduction.'
+    const text = humanize(raw, 'collect')
+    expect(text).toContain('mal formé')
+    expect(text).toContain('describe()')
+    expect(text).toContain("Aucun test n'a été collecté")
   })
 
   it('laisse passer une forme inconnue sans la reformuler', () => {
-    expect(humanize('Error: quelque chose de jamais vu')).toBeUndefined()
-    expect(humanize('')).toBeUndefined()
+    expect(humanize('Error: quelque chose de jamais vu', 'run')).toBeUndefined()
+    expect(humanize('', 'run')).toBeUndefined()
+  })
+
+  // D32, remonté du terrain : « Cannot read properties of undefined (reading 'config') »
+  // à la collecte venait de la config Vitest, pas du code de l'étudiant. La traduction
+  // d'exécution l'envoyait chercher dans son fichier.
+  it("ne traduit pas une forme d'exécution survenue à la collecte", () => {
+    const raw = "TypeError: Cannot read properties of undefined (reading 'config')"
+    expect(humanize(raw, 'run')).toContain('« config »')
+    expect(humanize(raw, 'collect')).toBeUndefined()
+  })
+
+  it('garde les formes de collecte à la collecte', () => {
+    const brut = "Error: Cannot find module '../../src/Compteur' imported from step-1.1.spec.tsx"
+    expect(humanize(brut, 'collect')).toContain('introuvable')
+    // Une assertion qui parle d'un module introuvable reste lisible : la forme vaut pour
+    // les deux phases, contrairement aux erreurs d'exécution pures.
+    expect(humanize(brut, 'run')).toContain('introuvable')
   })
 
   it('coupe le commentaire « // Object.is equality » de Vitest', () => {
-    expect(humanize('AssertionError: expected 5 to be 3 // Object.is equality')).toBe(
+    expect(humanize('AssertionError: expected 5 to be 3 // Object.is equality', 'run')).toBe(
       'Obtenu : 5\nAttendu : 3'
     )
   })

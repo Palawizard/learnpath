@@ -38,7 +38,7 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 |---|---|
 | `vitest.ts` | Construit l'argv depuis `runner.kind` (D14), lance le process sans shell, lit `--outputFile` |
 | `parse.ts` | Sortie Vitest JSON → `RawResult`, sans jamais lever |
-| `classify.ts` | Classe un run en `pass` / `missing-file` / `parse-error` / `assertion-failed` |
+| `classify.ts` | Classe un run en `pass` / `missing-file` / `collect-error` / `assertion-failed` |
 
 `classify.ts` est le module qui fait la qualité perçue du produit. À soigner et à
 tester avec de vraies fixtures.
@@ -77,7 +77,7 @@ save fichier
           └─ runner.run(step.id + ids précédents en régression)
               └─ parse + classify
                   ├─ missing-file    → ne rien afficher, état initial
-                  ├─ parse-error     → indicateur discret « code incomplet »
+                  ├─ collect-error   → indicateur discret « code incomplet »
                   ├─ assertion-failed→ diff + hint suivant disponible
                   ├─ pass + une étape précédente cassée
                   │                  → étape validée, progression en pause (D16)

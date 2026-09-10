@@ -8,7 +8,7 @@ dans git et dans `DECISIONS.md`).
 
 ## Date de dernière mise à jour
 
-2026-09-09
+2026-09-10
 
 ## À VÉRIFIER PAR UN HUMAIN AVANT DE PUBLIER
 
@@ -35,100 +35,108 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 
 ## Lot en cours
 
-**Lot 7 (Publication) terminé côté code et paquet.** Il ne reste que la vérification
-humaine ci-dessus et l'acte de publication lui-même.
+**Troisième session de correction, hors lot** — trois garanties fausses signalées par un
+diagnostic externe (D33). Traitées. Le lot 7 (Publication) reste terminé côté code ; la
+vérification humaine ci-dessus est toujours à faire.
 
-## Ce qui a été fait dans ce lot
+## Ce qui a été fait dans cette session
 
-### 1. Deux correctifs de fond sur la vérification des solutions
+Trois garanties fausses, corrigées dans l'ordre de gravité. Le détail et le raisonnement
+sont dans **D33** (`DECISIONS.md`).
 
-**`node_modules` n'est plus ouvert en écriture au bac à sable (D25).** Le lien de jonction
-posé sur le dossier entier renvoyait dans le projet de l'utilisateur deux écritures bien
-réelles de Vite : son cache (`node_modules/.vite/`, présent dans le dépôt, constaté) et la
-version transpilée du fichier de config (`node_modules/.vite-temp/`, chemin imposé par
-`findNearestNodeModules`, non configurable). Deux verrous : `.learn/vitest.config.mts`
-fixe `cacheDir` sur `.learn/.vite` — ce qui vaut aussi pour les runs ordinaires pendant que
-l'étudiant code —, et le bac à sable relie `node_modules` **entrée par entrée**. Test de
-non-régression dans `verify.test.ts`, sans vrai run Vitest ; il échoue bien si on remet le
-lien unique.
+### 1. `verifyAllRed` ne vérifiait pas ce qu'il prétendait
 
-Seule commande qui tourne dans le bac à sable : Vitest. `runner.setup` est joué avant,
-dans le vrai projet, après confirmation explicite.
+Il ne cherchait que les étapes `pass`. Une étape dont aucun test ne se collecte n'est pas
+`pass` : elle passait pour rouge. La garantie « chaque étape échoue avant écriture » était
+donc vraie sur un parcours dont rien ne s'exécute.
 
-**La copie du workspace suit `.gitignore` (D26).** `git ls-files -c -o --exclude-standard`
-quand le projet est un dépôt, parcours récursif avec liste d'exclusion sinon, plus un
-avertissement explicite au-delà de 100 Mo. Mesuré sur de vrais projets, pas sur
-`demo-project` : un dépôt de 740 Mo passe de 726 Mo copiés en 2,7 s à **179 fichiers en
-0,67 s**, parce que les 733 Mo de son dossier de données sont dans son `.gitignore` et dans
-aucune liste d'exclusion imaginable. Tableau complet dans D26.
+Rouge se prouve maintenant : `assertion-failed` (tests collectés, en échec) ou
+`missing-file` (le fichier attendu n'est pas encore écrit). Zéro test collecté est un échec
+de vérification distinct, avec son propre message. Non-régression : `b-syntaxe-invalide`
+(cinq fichiers qui ne se collectent pas) est rejetée, et le parcours `test-mal-forme` est
+désormais refusé par `verifyAllRed`, avant qu'on arrive aux solutions.
 
-### 2. Métadonnées du paquet
+### 2. `classify` n'invente plus la cause d'une collecte ratée
 
-`LICENSE` MIT à la racine (le README l'annonçait, le fichier n'existait pas ; `ovsx` le
-réclame). `package.json` : `publisher: Palawizard`, `repository`, `bugs`, `homepage`,
-`keywords`, `icon`, `galleryBanner`, `vscode:prepublish`, version passée en `0.1.0`.
-`media/icon.png` : 256×256, la barre segmentée du panneau — un placeholder honnête, à
-remplacer si quelqu'un sait dessiner.
+`parse-error` est devenu `collect-error`. Le nom affirmait une cause qu'on ne connaît pas.
+Vérifié sur deux vraies sorties Vitest : un fichier de test mal formé et un fichier importé
+mal formé produisent le **même** message, sans chemin. Le texte ne permet pas de trancher.
 
-`.vscodeignore` complété : `schema/` en sort (il est importé par `src/core/parcours.ts`
-donc déjà dans le bundle, il serait parti en double), plus `.github/`, `vitest.config.mts`,
-`package-lock.json`, `AGENTS.md`, `CLAUDE.md`. `esbuild` minifie hors mode `--watch` : le
-bundle passe de 600 ko à 329 ko.
+La seule séparation honnête vient du run, pas du texte : si une autre étape a reçu un
+verdict, l'outillage marche et la cause est locale à ce fichier ; sinon on ne désigne
+personne. L'affichage côté étudiant n'a pas changé.
 
-**Contenu du VSIX, vérifié avec `vsce ls`** — 7 fichiers, **117 Ko** :
+### 3. La stack complète est conservée
 
-```
-extension/LICENSE.txt        1,04 Ko
-extension/package.json       2,32 Ko
-extension/readme.md          9,41 Ko
-extension/dist/extension.js  329,04 Ko   (ajv + markdown-it bundlés, aucun node_modules)
-extension/media/icon.png     1,05 Ko
-[Content_Types].xml, extension.vsixmanifest
-```
+`RawResult` porte la stderr du process, entière (bornée à 32 ko **en queue** : la ligne qui
+nomme la cause est en haut d'une stack, pas en bas). En cas d'échec, tout part dans
+`.learn/verify.log` et le message d'erreur donne ce chemin. Le rollback de l'import préserve
+ce fichier, pour la même raison que le fichier de parcours (D28).
 
-### 3. CI
+### 4. Trois bugs trouvés en chemin — tous « une seule formulation connue »
 
-`.github/workflows/ci.yml` : `ubuntu-latest` × `windows-latest` × Node 20 et 22,
-`npm ci` + `npm run compile` + `npm test`, `fail-fast: false`. Node 22 et Windows ne sont
-pas des extras : c'est la combinaison qui a produit les deux bugs spécifiques du projet
-(refus de `spawn` sur un `.cmd`, résolution du CLI de Vitest). **Jamais exécutée** : le
-dépôt n'a pas encore reçu de push avec ce fichier.
+- **Vite 8 dit `Failed to resolve import "<spec>" from "<fichier>"`** pour un fichier pas
+  encore écrit, pas `Cannot find module`. Sur cette pile, **chaque étape non commencée
+  sortait en erreur de collecte** au lieu de « pas encore commencée » : l'étudiant voyait
+  « le fichier n'est pas encore valide » et un message brut de Vite dès l'ouverture d'une
+  étape, ce que `UX.md` interdit explicitement. Fixture réelle capturée :
+  `h-import-non-resolu-vite8.json`.
+- **`Cannot find package '<spec>'`** : même cause, formulation produite quand un alias du
+  projet pointe un fichier absent.
+- Un spécificateur d'**alias** ne peut pas être comparé à `expected.files` par résolution de
+  chemin. On compare les noms de fichier, et `missing-file` porte désormais le spécificateur
+  non résolu dans un champ `missing`, hors de `message`.
 
-### 4. Recherche : le dépassement de délai perdu dans le rapport JSON (D27)
+## Point 4 — la cause probable : **infirmée sur cette pile**
 
-Cause trouvée dans le code de `@vitest/runner`, pas devinée : `makeTimeoutError` écrase
-`error.stack` avec un `replace` dont les arguments semblent inversés, et le reporter JSON
-émet `e.stack || e.message`. `error.message` est correct, seul `stack` est faux.
+L'hypothèse était : le hook `configEnvironment` d'`@vitejs/plugin-react` lit `env.config`
+sans garde et reçoit `undefined`, à cause de l'héritage D31, des jonctions `node_modules` ou
+du lancement sous `process.execPath = Code.exe`.
 
-Le reporter `junit` **conserve** le message (vérifié sur un vrai dépassement), et les deux
-reporters cohabitent en un seul run. Coût : migrer sur junit est cher (parseur XML,
-revalidation des quatre classifications) ; ajouter junit à côté du JSON vaut environ une
-heure. **Décision : ni l'un ni l'autre pour l'instant**, `humanize.ts` reste tel quel, la
-limite est notée dans le README et le détail dans D27.
+**Reproduction faite, hypothèse non confirmée. D31 n'est pas en cause, rien n'a été touché.**
 
-### 5. README pour l'utilisateur final
+Projet neuf, **Vite 8.2.2 / @vitejs/plugin-react 6.1.1 / React 19.3 / Vitest 4.1.11**,
+parcours React d'une étape qui monte un composant. Import complet : **il passe**, y compris
+`verifyAllGreen`, donc y compris le bac à sable à `node_modules` relié par jonctions.
+Testé avec un `vite.config.ts` en forme d'objet **et** en forme de fonction (`defineConfig(
+({ mode, command }) => …)`, avec une garde qui lève si l'`env` reçu est incomplet — elle
+n'a jamais levé).
 
-Réécrit de zéro. Ce que ça fait et ce que ça ne fait pas, l'installation, la procédure
-complète depuis « je veux coder cette fonctionnalité » jusqu'à la première étape, le prompt
-de génération dans **un seul bloc copiable**, les commandes, les réglages, les limites
-connues. Et une section « Ce que l'extension écrit dans ton projet » avec un tableau
-chemin / quand / contenu, puis la liste de ce qui n'est jamais touché — c'est la question
-que les gens se posent vraiment avant d'installer.
+Ce que dit la lecture de `@vitejs/plugin-react@6.1.1/dist/index.js` :
 
-L'ancien contenu (table des documents internes, état du prototype) a disparu : il
-s'adressait à quelqu'un qui travaille sur le projet, et ce lecteur-là entre par `AGENTS.md`.
+- le hook s'appelle **`applyToEnvironment`**, pas `configEnvironment` ;
+- il lit bien `env.config` sans garde (l. 119), et `reactCompilerPreset` fait pareil (l. 49) ;
+- mais `viteRefreshWrapper`, qui porte ce hook, est déclaré **`apply: "serve"`**. Il ne
+  tourne donc pas sous `vitest run`. Celui de `reactCompilerPreset` ne tourne que si le
+  React Compiler est activé.
 
-### 6. `docs/MANUAL-QA.md`
+L'échec initial sur cette pile était **le bug Vite 8 du point 4 ci-dessus** — l'étape non
+commencée prise pour une erreur de collecte — pas un plantage de plugin.
 
-44 points, une ligne chacun, avec le résultat attendu, regroupés par thème : import, les
-trois états rouges, run en cours, progression, indices et solution, écran de fin,
-réinitialisation, focus et accessibilité, thèmes, et le parcours panier de bout en bout sur
-VSCodium. Avec la marche à suivre pour se mettre en position et pour provoquer chaque état.
+**Ce qui reste non testé, et ne peut pas l'être ici :** le lancement sous
+`process.execPath = Code.exe` dans l'hôte d'extension, et les jonctions Windows (la
+reproduction est sous Linux, où ce sont des liens symboliques). Si le plantage revient, le
+`.learn/verify.log` porte maintenant la stack entière — c'est lui qu'il faut lire.
 
 ## État des vérifications automatiques
 
-`npm run compile` et `npm test` au vert : **238 tests, 17 fichiers** (+1 par rapport au
-lot 6). VSIX produit : `learnpath-0.1.0.vsix`, 117 Ko, 7 fichiers.
+`npm run compile` et `npm test` au vert : **265 tests, 17 fichiers**. Le test d'héritage de
+config est un **vrai run Vitest** : un alias déclaré dans le `vite.config.ts` d'un projet
+temporaire doit résoudre dans les tests du parcours, et le même parcours sans cette config
+doit échouer — le contrôle négatif est là pour que le test prouve l'héritage et pas la
+présence d'une ligne dans un fichier.
+
+Trois tests de non-régression ajoutés cette session, dont deux qui lancent de vrais runs
+Vitest : un parcours dont aucun test ne se collecte est **refusé** par `verifyAllRed` ; un
+parcours dont un seul fichier de test ne se collecte pas est refusé sans accuser la
+solution ; et `.learn/verify.log` existe après l'échec, contient plus que la première ligne,
+et **survit au rollback**.
+
+Import complet rejoué en vrai cette session, hors extension : **Vite 8.2.2 + plugin-react
+6.1.1 + React 19.3 + Vitest 4.1.11**, config du projet en forme d'objet puis en forme de
+fonction — il passe dans les deux cas. Les imports des sessions précédentes (projet vanilla
+`examples/demo-project`, et Vite 5 + React 18 + `@vitejs/plugin-react@4` + Vitest 1) n'ont
+**pas** été rejoués ici.
 
 ## Ce qui bloque
 
@@ -153,6 +161,11 @@ création des comptes `Palawizard` (marketplace VS Code, Open VSX).
 1. Pousser la branche : la CI se déclenche pour la première fois, sur les quatre
    combinaisons. Corriger ce qu'elle trouve avant tout le reste.
 2. Dérouler `docs/MANUAL-QA.md` dans l'Extension Development Host, puis dans VSCodium.
+   Trois points nouveaux à y ajouter, non couverts par les 44 existants : provoquer un échec
+   de setup et vérifier que `.learn/parcours/<slug>.json` est toujours là (D28), vérifier
+   que la vue Sortie s'ouvre bien sur un import refusé (D29), et jouer un parcours React de
+   bout en bout dans un vrai projet Vite (D31) — l'import est vérifié, la boucle de jeu ne
+   l'a jamais été sur un composant.
    Reporter le résultat ici : ce qui est confirmé sort de la liste en tête, ce qui échoue
    devient une ligne dans « Ce qui bloque ».
 3. Prendre les trois captures d'écran, les pousser, remplacer les commentaires du README.

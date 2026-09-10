@@ -53,8 +53,8 @@ assertions en échec de l'étape. Le tableau décrit exactement ce que le code r
 
 | Situation | Ce que retourne `classify` | Zone d'état |
 |---|---|---|
-| Fichier pas encore créé | `state: 'missing-file'`, `message` absent, `failures` vide — un `Cannot find module` dont le chemin résolu est dans `expected.files` | rien du tout. C'est l'état normal en début d'étape, afficher une erreur ici est décourageant et faux |
-| Code en cours d'écriture | `state: 'parse-error'`, `message` toujours présent, `failures` vide — aucun test de l'étape n'a tourné et l'erreur n'est pas un fichier attendu manquant | ligne grise discrète : « le fichier n'est pas encore valide », suivie du `message`. Jamais de rouge |
+| Fichier pas encore créé | `state: 'missing-file'`, `message` absent, `failures` vide — un import non résolu dont la cible est dans `expected.files`. Trois formulations pour cette seule cause, toutes reconnues (D33) : `Cannot find module`, `Cannot find package` (alias du projet), `Failed to resolve import` (Vite 8) | rien du tout. C'est l'état normal en début d'étape, afficher une erreur ici est décourageant et faux |
+| Code en cours d'écriture | `state: 'collect-error'`, `message` toujours présent, `failures` vide — aucun test de l'étape n'a été collecté et l'erreur n'est pas un fichier attendu manquant | ligne grise discrète : « le fichier n'est pas encore valide », suivie du `message`. Jamais de rouge |
 | Assertion en échec | `state: 'assertion-failed'`, `failures` non vide, `message` = premier `failureMessages` | rouge, `fullName` du test échoué, attendu / reçu tiré de `failures`, et déblocage de l'indice suivant |
 | Étape réussie | `state: 'pass'`, `message` absent, `failures` vide | vert, puis progression |
 
@@ -67,7 +67,12 @@ seule, telle quelle. On ne devine jamais l'intention.
 
 Règle de rendu : **`message` présent ⇒ on le montre**. Il porte aussi les erreurs qui ne
 sont pas de notre fait — un `Cannot find module 'lodash'` hors `expected.files` sort en
-`parse-error` avec son message, il n'est jamais avalé en « fichier pas encore créé ».
+`collect-error` avec son message, il n'est jamais avalé en « fichier pas encore créé ».
+
+L'état s'appelait `parse-error` jusqu'à D33. Le nom affirmait une cause — le fichier ne
+*parse* pas — que rien ne permet de connaître : la collecte échoue aussi bien sur la config
+Vite, sur un plugin ou sur le runner. Il ne dit plus que ce qu'on sait, « aucun test de
+cette étape n'a été collecté ». L'affichage, lui, n'a pas changé.
 
 ## Progression
 

@@ -65,17 +65,20 @@ Colle ce bloc à ton agent de code, dans le projet concerné, en remplaçant la 
 ligne par ce que tu veux construire.
 
 ````text
-Tu vas produire un parcours d'apprentissage LearnPath : un fichier JSON que j'importerai
-dans mon éditeur. Je code les étapes moi-même, tu ne codes rien à ma place.
+Ta tâche est d'écrire le fichier .learn/parcours/<slug>.json. N'affiche pas son contenu
+dans ta réponse : écris-le directement sur le disque et confirme le chemin.
 
-Format exact :
+Ce fichier est un parcours d'apprentissage LearnPath, que j'importerai dans mon éditeur.
+Je code les étapes moi-même, tu ne codes rien à ma place.
+
+Format exact du fichier :
 
 {
   "version": 1,
   "slug": "kebab-case-sans-espace",
   "title": "Titre lisible",
   "intro": "Markdown. Ce qu'on construit et pourquoi.",
-  "runner": { "kind": "vitest", "cwd": ".", "setup": ["npm i -D vitest"] },
+  "runner": { "kind": "vitest", "cwd": ".", "environment": "node", "setup": ["npm i -D vitest"] },
   "contract": {
     "files": { "src/chemin.js": "signature1(...) -> ... ; signature2(...) -> ..." }
   },
@@ -118,9 +121,27 @@ Règles non négociables :
    d'entrée fait refuser tout le parcours.
 7. 5 à 10 étapes. Une étape = une idée, environ 15 lignes de code de ma part au plus.
 8. "setup" ne peut contenir que des commandes npm, npx, pnpm ou yarn, sans && ni | ni ;.
+   "environment" vaut "jsdom" dès qu'un test monte un composant ou touche au DOM (React,
+   Vue, Svelte), "node" sinon. Les plugins et les alias de mon projet sont hérités de mon
+   vite.config, il n'y a rien à redéclarer.
+9. Structure des fichiers de test : chaque it() est à l'intérieur d'un describe(), jamais
+   au niveau racine, et le callback de describe() est synchrone, jamais async. Ne crée
+   jamais un it() dans un hook, dans un autre it() ou dans un setTimeout. Sinon le fichier
+   ne se COLLECTE pas : Vitest n'y voit aucun test, n'en exécute aucun, et l'import refuse
+   le parcours avec un message que je ne peux pas décoder.
+
+Avant d'écrire le fichier, exécute réellement les tests et vérifie, dans cet ordre :
+- chaque fichier de test SE COLLECTE (Vitest annonce le bon nombre de tests pour ce
+  fichier), y compris avant que mon code existe. « Le test échoue » et « le test ne
+  s'exécute pas » ne sont pas la même chose : un fichier mal formé échoue aussi, mais pour
+  la mauvaise raison ;
+- une fois collecté, chaque test ÉCHOUE sur le projet actuel ;
+- les solutions appliquées dans l'ordre laissent, après chaque étape N, les tests des
+  étapes 1 à N tous verts.
 
 Regarde mon projet pour choisir les chemins, le style et les conventions existantes.
-Réponds uniquement par le JSON, dans un seul bloc, sans commentaire autour.
+Écris le fichier sur le disque et confirme son chemin. Ne recopie pas le JSON dans ta
+réponse.
 
 La fonctionnalité que je veux coder : <DÉCRIS-LA ICI>
 ````
@@ -136,7 +157,7 @@ Tout tient dans un dossier, plus deux lignes de `.gitignore` :
 |---|---|---|
 | `.learn/parcours/<slug>.json` | à l'import | le parcours tel que tu l'as importé |
 | `.learn/tests/step-*.spec.js` | à l'import | les tests des étapes |
-| `.learn/vitest.config.mts` | à l'import | une config Vitest isolée, qui ne lit que `.learn/tests/` |
+| `.learn/vitest.config.mts` | à l'import | une config Vitest isolée, qui ne lit que `.learn/tests/` ; elle hérite des plugins et alias de ton `vite.config.*` s'il existe, jamais de ta config de test |
 | `.learn/state.json` | en continu | ta progression : étape en cours, indices vus, solutions révélées |
 | `.learn/.vite/` | pendant les runs | le cache de Vitest, jetable |
 | `.gitignore` | à l'import | deux lignes ajoutées sous un commentaire `# LearnPath` |

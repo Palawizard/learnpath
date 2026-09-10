@@ -177,7 +177,7 @@ describe('.gitignore', () => {
 })
 
 describe('refus de confirmation', () => {
-  it('annule l\'import et ne laisse pas de .learn/ derrière', async () => {
+  it("annule l'import et ne laisse derrière que le fichier de parcours (D28)", async () => {
     const result = await importParcours(
       parcours(),
       workspace,
@@ -186,7 +186,10 @@ describe('refus de confirmation', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error).toContain('Import annulé')
-    expect(await missing('.learn')).toBe(true)
+    expect(await read('.learn/parcours/panier.json')).toContain('"slug": "panier"')
+    expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
+    expect(await missing('.learn/state.json')).toBe(true)
+    expect(await missing('.learn/vitest.config.mts')).toBe(true)
   })
 
   it('ne supprime pas un .learn/ préexistant, seulement ce qu\'il vient d\'écrire', async () => {
@@ -207,7 +210,7 @@ describe('refus de confirmation', () => {
       hooks({ exec: () => Promise.resolve(err('code de sortie 1')) })
     )
     expect(result.ok).toBe(false)
-    expect(await missing('.learn')).toBe(true)
+    expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
   })
 
   it('ne demande rien quand le parcours n\'a pas de setup', async () => {
@@ -261,7 +264,7 @@ describe('écriture interrompue', () => {
     const result = await importParcours(parcours(), workspace, hooks())
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.error).toContain("rien n'a été conservé")
+    expect(result.error).toContain("Rien n'a été conservé")
     expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
     expect(await missing('.learn/state.json')).toBe(true)
   })
@@ -297,9 +300,9 @@ describe('vérification « tout doit être rouge » (D5)', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error).toMatch(/« 1\.1 — Étape 1\.1 », « 1\.2 — Étape 1\.2 » passent déjà/)
-      expect(result.error).toMatch(/Rien n'a été conservé/)
+      expect(result.error).toMatch(/Le fichier de parcours est conservé/)
     }
-    expect(await missing('.learn')).toBe(true)
+    expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
   })
 
   it('annule aussi si les tests n\'ont pas pu être lancés', async () => {
@@ -311,6 +314,126 @@ describe('vérification « tout doit être rouge » (D5)', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toMatch(/La vérification du parcours n'a pas pu être faite/)
-    expect(await missing('.learn')).toBe(true)
+    expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
+  })
+})
+
+// --- D28 : le parcours survit à un échec tardif ------------------------------------------
+//
+// Le fichier de parcours est la seule chose non reproductible du système : un LLM ne
+// régénère jamais deux fois la même sortie, et le générateur écrit justement dans
+// .learn/parcours/<slug>.json. Le rollback ne doit pas l'emporter.
+
+describe("le fichier de parcours survit au rollback (D28)", () => {
+  const echecs: readonly [string, () => Partial<ImportHooks>][] = [
+    ['setup', () => ({ exec: () => Promise.resolve(err('spawn npm ENOENT')) })],
+    ['verifyAllRed', () => ({ runAll: () => Promise.resolve(fixture('d-tout-passe')) })],
+    ['verifyAllGreen', () => ({ runSteps: () => Promise.resolve(fixture('a-fichier-absent')) })],
+  ]
+
+  for (const [nom, override] of echecs) {
+    it(`échec ${nom} : le parcours reste sur disque et le message dit où`, async () => {
+      const result = await importParcours(parcours(), workspace, hooks(override()))
+
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.error).toContain('.learn/parcours/panier.json')
+
+      const conserve = JSON.parse(await read('.learn/parcours/panier.json')) as { slug: string }
+      expect(conserve.slug).toBe('panier')
+      // Et rien d'autre : le rollback fait son travail par ailleurs.
+      expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
+      expect(await missing('.learn/state.json')).toBe(true)
+      expect(await missing('.learn/vitest.config.mts')).toBe(true)
+    })
+
+    it(`échec ${nom} : un .learn/ préexistant n'est pas emporté non plus`, async () => {
+      await fs.mkdir(path.join(workspace, '.learn'), { recursive: true })
+      await fs.writeFile(path.join(workspace, '.learn/notes.md'), 'à moi', 'utf8')
+
+      await importParcours(parcours(), workspace, hooks(override()))
+
+      expect(await read('.learn/notes.md')).toBe('à moi')
+      expect(await read('.learn/parcours/panier.json')).toContain('"slug": "panier"')
+    })
+  }
+
+  it('réimporter après un échec tardif reste possible', async () => {
+    await importParcours(parcours(), workspace, hooks({ exec: () => Promise.resolve(err('spawn npm ENOENT')) }))
+    const second = await importParcours(parcours(), workspace, hooks())
+    expect(second.ok).toBe(true)
+  })
+})
+
+const NL = '\n'
+
+// --- D31 : la config générée hérite de l'écosystème du projet ----------------------------
+//
+// Un projet React a besoin de son plugin et d'un environnement DOM. Reconstruire ça à la
+// main redevient faux au prochain écosystème : on part de la config Vite du projet.
+
+describe('config Vitest générée (D31)', () => {
+  const viteConfig = (contenu: string): Promise<void> =>
+    fs.writeFile(path.join(workspace, 'vite.config.ts'), contenu, 'utf8')
+
+  it('projet vanilla sans config Vite : config autonome, environnement node', async () => {
+    await importParcours(parcours(), workspace, hooks())
+    const config = await read('.learn/vitest.config.mts')
+
+    expect(config).not.toContain('mergeConfig')
+    expect(config).toContain("environment: 'node'")
+    expect(config).toContain('root: workspaceRoot')
+  })
+
+  it('projet avec vite.config.ts : hérite de ses plugins et de ses alias', async () => {
+    await viteConfig("export default { plugins: [] }" + NL)
+    await importParcours(parcours(), workspace, hooks())
+    const config = await read('.learn/vitest.config.mts')
+
+    expect(config).toContain("import projet from '../vite.config.ts'")
+    expect(config).toContain('mergeConfig(base,')
+    // Le bloc `test` du projet est écarté : sa config de test ne s'applique pas ici (D3).
+    expect(config).toContain('const { test: _test, ...base } = resolu')
+  })
+
+  it('config Vite exportée sous forme de fonction : elle est appelée, pas fusionnée telle quelle', async () => {
+    await viteConfig("export default () => ({ plugins: [] })" + NL)
+    await importParcours(parcours(), workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).toContain(
+      "typeof projet === 'function' ? await projet(env) : await projet"
+    )
+  })
+
+  it('trouve aussi une config Vite en .js', async () => {
+    await fs.writeFile(path.join(workspace, 'vite.config.js'), 'export default {}' + NL, 'utf8')
+    await importParcours(parcours(), workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).toContain("import projet from '../vite.config.js'")
+  })
+
+  it("n'hérite jamais du vitest.config.ts du projet, qui est sa config de test", async () => {
+    await fs.writeFile(path.join(workspace, 'vitest.config.ts'), 'export default {}' + NL, 'utf8')
+    await importParcours(parcours(), workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).not.toContain('vitest.config')
+  })
+
+  it('runner.environment est repris tel quel', async () => {
+    const react = parcours({ runner: { kind: 'vitest', cwd: '.', environment: 'jsdom', setup: [] } })
+    await importParcours(react, workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).toContain("environment: 'jsdom'")
+  })
+
+  // Les parcours écrits avant D31 n'ont pas le champ, mais installent jsdom : c'est le
+  // cas remonté du terrain, et il doit marcher sans régénérer le parcours.
+  it("sans le champ, déduit jsdom du setup qui l'installe", async () => {
+    const react = parcours({
+      runner: { kind: 'vitest', cwd: '.', setup: ['npm i -D vitest jsdom @testing-library/react'] },
+    })
+    await importParcours(react, workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).toContain("environment: 'jsdom'")
+  })
+
+  it("un setup qui n'installe pas de DOM reste en node", async () => {
+    await importParcours(parcours(), workspace, hooks())
+    expect(await read('.learn/vitest.config.mts')).toContain("environment: 'node'")
   })
 })

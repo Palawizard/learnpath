@@ -32,6 +32,9 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
     "kind": "vitest",            // seule valeur admise ; la commande est construite
                                  // par l'extension, pas fournie par le parcours (D14)
     "cwd": ".",
+    "environment": "node",       // "node" | "jsdom" | "happy-dom" | "edge-runtime".
+                                 // Absent : déduit du setup (D31). Un parcours qui monte
+                                 // un composant a besoin de "jsdom".
     "setup": ["npm i -D vitest"] // joué une seule fois à l'import, liste blanche (D8)
   },
 
@@ -93,6 +96,54 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
 6. **5 à 10 étapes.** Une étape = une idée. Si une étape demande plus de ~15 lignes
    à l'étudiant, la couper en deux.
 
+## Structure des tests
+
+Un fichier de test mal formé ne se **collecte** pas : Vitest n'y trouve aucun test et
+n'en exécute aucun. Vu de loin ça ressemble à un test rouge, sauf que le test n'existe
+pas. C'est la faute la plus coûteuse du générateur, parce qu'elle ne se voit qu'à
+l'import et qu'elle produit un message incompréhensible (« Vitest failed to find the
+current suite », que Vitest lui-même attribue à un de ses bugs).
+
+1. **Chaque `it()` est imbriqué dans un `describe()`**, jamais au niveau racine du
+   fichier.
+2. **Le callback de `describe()` est synchrone**, jamais `async`. Tout l'asynchrone va
+   dans les `it()`, où il est attendu par le runner.
+3. **Aucun `it()` ni `describe()` créé ailleurs** : pas dans un hook (`beforeEach`), pas
+   dans un autre `it()`, pas dans un `setTimeout`, pas dans un `.then()`. La collecte est
+   terminée quand ces codes s'exécutent.
+4. **Avant de rendre le JSON, exécute réellement chaque fichier de test**, y compris —
+   et surtout — avant que le code de l'étudiant existe. Ce qu'on vérifie là n'est pas
+   qu'il échoue, c'est qu'il **se collecte** : Vitest doit annoncer le bon nombre de
+   tests pour ce fichier.
+
+**« Le test échoue » et « le test ne s'exécute pas » ne sont pas la même chose.** Un
+fichier mal formé échoue aussi, mais pour la mauvaise raison, et l'extension le refuse.
+
+| Ce que dit Vitest | Ce que ça veut dire |
+|---|---|
+| N tests, N en échec (assertion, module introuvable) | correct : le test existe et il est rouge parce que le code n'est pas écrit |
+| 0 test collecté, erreur au niveau du fichier | **le fichier de test est mal formé** : à corriger avant de rendre le JSON |
+
+## La config Vitest écrite par l'extension
+
+`.learn/vitest.config.mts` est **générée**, jamais éditée à la main : elle est réécrite à
+chaque import. Deux formes, selon le projet (D31) :
+
+- **le projet a un `vite.config.*`** : la config générée l'importe et fusionne avec
+  `mergeConfig`. Le projet apporte ses plugins (`@vitejs/plugin-react`, Vue, Svelte…), ses
+  alias et son `resolve` ; on n'ajoute que le bloc `test`. Le `test` du projet, lui, est
+  écarté : sa config de test n'est ni lue ni appliquée, sinon ses `include` s'ajouteraient
+  aux nôtres et la vérification à l'import lancerait ses tests à lui.
+- **pas de config Vite** : config autonome, comme avant.
+
+`vitest.config.*` du projet n'est jamais lu — c'est sa configuration de test, elle est
+sacrée (D3).
+
+Ce qu'aucune config Vite ne contient, c'est l'environnement de test. Un test de composant
+sous `environment: 'node'` échoue sur `document is not defined`. Il vient donc de
+`runner.environment` ; à défaut, il est déduit de `setup` (installer `jsdom` ou
+`happy-dom`, c'est en avoir besoin), et vaut `node` sinon.
+
 ## Validation à l'import (côté extension)
 
 C'est le garde-fou le plus important, il attrape les parcours bidons :
@@ -107,7 +158,9 @@ C'est le garde-fou le plus important, il attrape les parcours bidons :
    distinctes sont attrapées là, et nommées différemment :
    - la solution de l'étape N ne passe pas ses propres tests — l'étudiant n'a aucune chance ;
    - la solution de l'étape N casse une étape précédente — elle n'était pas le contenu
-     complet du fichier.
+     complet du fichier ;
+   - le fichier de test de l'étape N ne se collecte pas — aucun test n'a tourné, la
+     solution n'est pas en cause, c'est le fichier de test qui est mal formé.
    Ça coûte un run de tests par étape (mesuré : environ 0,8 s par étape sur le parcours
    panier, cinq étapes). Ce n'est pas optionnel : c'est ce qui distingue un parcours
    jouable d'un parcours qui bloque l'étudiant à l'étape 4.
@@ -142,7 +195,10 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 
 # Prompt de génération (à coller dans Claude Code / Codex)
 
-> Tu vas produire un parcours d'apprentissage au format JSON défini ci-dessous, à
+> **Ta tâche est d'écrire le fichier `.learn/parcours/<slug>.json`.** N'affiche pas son
+> contenu dans ta réponse : écris-le directement sur le disque et confirme le chemin.
+>
+> Ce fichier est un parcours d'apprentissage au format JSON défini ci-dessous, construit à
 > partir de la fonctionnalité que je veux implémenter dans ce projet.
 >
 > Contexte : lis le projet pour respecter ses conventions (style, structure de
@@ -156,6 +212,9 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 > - Fige d'abord le `contract` (fichiers, exports, signatures), puis écris les tests
 > - Les tests portent sur le comportement observable uniquement
 > - Chaque `describe` commence par `step <id>`
+> - **Chaque `it()` est à l'intérieur d'un `describe()`**, jamais au niveau racine, et le
+>   callback de `describe()` est **synchrone**, jamais `async` : sinon le fichier ne se
+>   collecte pas et aucun test n'est exécuté
 > - Les tests des étapes précédentes doivent rester verts quand le code grossit
 > - `explanation` explique le POURQUOI et ne contient jamais la solution
 > - `hints` va du plus vague au plus précis, sans donner le code
@@ -163,14 +222,22 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 >   tout ce que les étapes précédentes ont fait écrire y est encore, en entier. Jamais un
 >   extrait, jamais `// ... le reste inchangé ...` : ce texte est écrit tel quel sur le
 >   disque de l'étudiant et remplace le fichier
-> - `runner` ne contient que `kind` (`"vitest"`), `cwd` et `setup`. N'invente ni
->   `command` ni `filterFlag` : la commande de test est construite par l'extension et ces
->   champs sont refusés par le schéma. `setup` ne peut commencer que par npm, npx, pnpm
->   ou yarn.
+> - `runner` ne contient que `kind` (`"vitest"`), `cwd`, `environment` et `setup`.
+>   N'invente ni `command` ni `filterFlag` : la commande de test est construite par
+>   l'extension et ces champs sont refusés par le schéma. `setup` ne peut commencer que par
+>   npm, npx, pnpm ou yarn.
+> - `runner.environment` vaut `"jsdom"` dès qu'un test monte un composant ou touche au DOM
+>   (React, Vue, Svelte), `"node"` sinon. Les plugins et les alias du projet, eux, sont
+>   hérités de son `vite.config.*` : n'essaie pas de les redéclarer, il n'y a pas de champ
+>   pour ça.
 >
-> Avant de me rendre le JSON, vérifie toi-même :
-> 1. chaque test échoue sur le projet actuel
-> 2. les solutions appliquées **dans l'ordre** font passer, après chaque étape N, les
+> Avant d'écrire le fichier, vérifie toi-même, en **exécutant réellement** les tests :
+> 1. chaque fichier de test **se collecte** : Vitest annonce le bon nombre de tests pour
+>    ce fichier, même avant que le code de l'étudiant existe. Un fichier qui ne se collecte
+>    pas (0 test, erreur au niveau du fichier) est mal formé — ce n'est pas un test rouge,
+>    c'est un test qui n'existe pas, et l'import le refusera
+> 2. une fois collecté, chaque test **échoue** sur le projet actuel
+> 3. les solutions appliquées **dans l'ordre** font passer, après chaque étape N, les
 >    tests des étapes 1 à N — pas seulement ceux de l'étape N
 >
-> Écris le résultat dans `.learn/parcours/<slug>.json`.
+> Puis écris le fichier et confirme son chemin. Ne recopie pas le JSON dans ta réponse.

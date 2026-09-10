@@ -208,7 +208,7 @@ function summarize(
   total: number
 ): string {
   if (result.state === 'missing-file') return ''
-  if (result.state === 'parse-error') return "Le fichier n'est pas encore valide."
+  if (result.state === 'collect-error') return "Le fichier n'est pas encore valide."
   if (result.state === 'assertion-failed') {
     const failed = result.failures[0]?.fullName
     return failed === undefined ? `Étape ${step.id} : test en échec.` : `Test en échec : ${failed}`

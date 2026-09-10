@@ -58,7 +58,7 @@ complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en �
 
 - `src/runner/vitest.ts` : construit et lance la commande, avec timeout et annulation
 - `src/runner/parse.ts` : lit le rapport JSON du run → structure exploitable
-- `src/runner/classify.ts` : `missing-file` | `parse-error` | `assertion-failed` | `pass`
+- `src/runner/classify.ts` : `missing-file` | `collect-error` | `assertion-failed` | `pass`
 - Fixtures réelles dans `src/runner/__fixtures__/` : capturer de vraies sorties Vitest pour
   chacun des quatre cas, ne pas les écrire à la main
 - `src/core/verify.ts` : à l'import, lance tout et exige que **chaque étape soit rouge**.

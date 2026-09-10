@@ -6,9 +6,10 @@ import { type Result, ok, err } from './result.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import { writeFileAtomic } from './atomic.js'
 import { planSolution } from './reveal.js'
+import { humanize, phaseOf } from './humanize.js'
 import type { Parcours } from './parcours.js'
 import type { RawResult } from '../runner/parse.js'
-import { type Classification, classify } from '../runner/classify.js'
+import { type Classification, type State, classify } from '../runner/classify.js'
 import { run } from '../runner/vitest.js'
 
 /** Point d'injection des tests : par défaut, un vrai run Vitest sans filtre. */
@@ -21,6 +22,13 @@ const runAll: RunAll = (root) => run(root, [])
  * chaque étape soit rouge. Une étape déjà verte avant que l'étudiant ait écrit quoi que
  * ce soit est un test vide ou tautologique — le parcours ne vaut rien, on le refuse en
  * nommant l'étape.
+ *
+ * D33 : « rouge » veut dire que les tests de l'étape ont été **collectés** et qu'ils
+ * échouent — soit une assertion en échec, soit le fichier que l'étape demande d'écrire qui
+ * n'existe pas encore (`missing-file`), qui est l'état normal avant l'exercice. Zéro test
+ * collecté n'est pas rouge : c'est un parcours dont on ne sait rien. Le compter comme rouge
+ * faisait passer la garantie sur un parcours dont aucun test ne s'exécute, exactement le
+ * parcours bidon que ce module doit attraper.
  */
 export async function verifyAllRed(
   parcours: Parcours,
@@ -32,13 +40,50 @@ export async function verifyAllRed(
     return err(`La vérification du parcours n'a pas pu être faite : ${result.error}`)
   }
 
-  const green = parcours.steps.filter((step) => classify(result.value, step).state === 'pass')
-  if (green.length === 0) return ok(undefined)
+  const seen = parcours.steps.map((step) => ({ step, result: classify(result.value, step) }))
 
-  const names = green.map((step) => `« ${step.id} — ${step.title} »`).join(', ')
+  const green = seen.filter((s) => s.result.state === 'pass').map((s) => s.step)
+  if (green.length > 0) {
+    const names = green.map(name).join(', ')
+    return err(
+      `Ce parcours est invalide : ${green.length > 1 ? 'les étapes' : "l'étape"} ${names} ${green.length > 1 ? 'passent' : 'passe'} déjà alors que rien n'a été écrit. Un test qui est vert avant l'exercice ne teste rien.`
+    )
+  }
+
+  const mute = seen.filter((s) => !RED.has(s.result.state))
+  const first = mute[0]
+  if (first === undefined) return ok(undefined)
+
+  const others = mute.length > 1 ? ` (et ${mute.slice(1).map((s) => s.step.id).join(', ')})` : ''
+  // Preuve que l'outillage marche : une autre étape du **même run** a reçu un verdict.
+  const toolingWorks = seen.some((s) => s.result.state !== 'collect-error')
+  const journal = await keepDiagnostic(root, result.value, mute)
   return err(
-    `Ce parcours est invalide : ${green.length > 1 ? 'les étapes' : "l'étape"} ${names} ${green.length > 1 ? 'passent' : 'passe'} déjà alors que rien n'a été écrit. Un test qui est vert avant l'exercice ne teste rien.`
+    `Ce parcours est invalide : aucun test de l'étape ${name(first.step)}${others} n'a été collecté${detail(first.result)}. Rien ne s'est exécuté, donc rien ne prouve que l'étape échoue avant l'exercice — ${cause(toolingWorks)}${journal}`
   )
+}
+
+/**
+ * Les deux seuls états qui prouvent un échec : une assertion collectée qui échoue, et le
+ * fichier attendu de l'étape qui n'existe pas encore. Tout le reste veut dire « on n'a rien
+ * vu tourner ».
+ */
+const RED: ReadonlySet<State> = new Set<State>(['assertion-failed', 'missing-file'])
+
+/**
+ * D33 : la seule séparation qu'on sache faire sans mentir — et elle ne vient **pas** du
+ * texte de l'erreur. Un fichier de test mal formé et un fichier importé mal formé
+ * produisent le même message, sans chemin (fixtures `b-syntaxe-invalide` et
+ * `test-mal-forme`) : le lire pour désigner un coupable, c'est deviner.
+ *
+ * Ce qu'on sait vraiment, c'est si une **autre** étape du même run a reçu un verdict. Si
+ * oui, l'outillage marche et la cause est locale à ce fichier. Si non, elle est partagée et
+ * on ne désigne personne.
+ */
+function cause(toolingWorks: boolean): string {
+  return toolingWorks
+    ? "les autres étapes du parcours, elles, ont bien été évaluées : la cause est dans ce fichier de test ou dans ce qu'il importe."
+    : "aucune étape du parcours n'a été évaluée, cause indéterminée : la config Vite, un plugin, le runner, ou un import commun à tous les fichiers de test."
 }
 
 // --- Vérification des solutions (D21) ------------------------------------------------------
@@ -88,9 +133,12 @@ export async function verifyAllGreen(
 
       const own = classify(raw.value, step)
       if (own.state !== 'pass') {
-        return err(
-          `Ce parcours est invalide : la solution de l'étape ${name(step)} ne passe pas ses propres tests${detail(own)}. Si la solution de l'auteur ne passe pas, l'étudiant n'a aucune chance.`
-        )
+        // Une étape déjà jouée qui passe dans ce run prouve que l'outillage marche.
+        const toolingWorks = played.some((s) => s !== step && classify(raw.value, s).state === 'pass')
+        // Le journal va dans le **vrai** projet, pas dans le bac à sable : celui-ci est
+        // supprimé en sortant, le diagnostic disparaîtrait avec lui.
+        const journal = await keepDiagnostic(root, raw.value, [{ step, result: own }])
+        return err(`Ce parcours est invalide : ${wrong(step, own, toolingWorks)}${journal}`)
       }
 
       const broken = played
@@ -101,8 +149,9 @@ export async function verifyAllGreen(
       if (first !== undefined) {
         const others =
           broken.length > 1 ? ` (et ${broken.slice(1).map((b) => b.step.id).join(', ')})` : ''
+        const journal = await keepDiagnostic(root, raw.value, broken)
         return err(
-          `Ce parcours est invalide : la solution de l'étape ${name(step)} casse l'étape ${name(first.step)}${others}${detail(first.result)}. Une solution doit être le contenu complet du fichier à ce stade, pas un extrait.`
+          `Ce parcours est invalide : la solution de l'étape ${name(step)} casse l'étape ${name(first.step)}${others}${detail(first.result)}. Une solution doit être le contenu complet du fichier à ce stade, pas un extrait.${journal}`
         )
       }
     }
@@ -116,9 +165,77 @@ function name(step: Parcours['steps'][number]): string {
   return `« ${step.id} — ${step.title} »`
 }
 
+/**
+ * Une solution qui ne passe pas ses propres tests et un fichier de test qui ne se collecte
+ * pas ne sont pas le même problème et n'appellent pas la même correction : dans le premier
+ * cas la solution est fausse, dans le second le fichier de test est mal formé et **aucun**
+ * test n'a tourné. Les confondre envoie l'auteur du parcours corriger le mauvais fichier.
+ */
+function wrong(
+  step: Parcours['steps'][number],
+  result: Classification,
+  toolingWorks: boolean
+): string {
+  if (result.state === 'missing-file') {
+    // La solution vient d'être écrite : si l'import ne se résout toujours pas, ce n'est plus
+    // « pas encore écrit ». Nommer le spécificateur est tout le diagnostic — un alias que la
+    // config du projet ne déclare pas ressemble sinon à une faute de clé qui n'existe pas.
+    const spec = result.missing === undefined ? '' : ` (« ${result.missing} » reste introuvable)`
+    return `la solution de l'étape ${name(step)} n'écrit pas le fichier attendu par ses tests, ou le test ne sait pas le résoudre${spec}. Vérifie les clés de « solution » et « expected.files », et les alias de la config du projet.`
+  }
+  // D33 : on dit ce qu'on a vu — aucun test collecté — sans nommer de coupable qu'on ne
+  // connaît pas. La stack complète part dans le journal, elle le dira mieux que nous.
+  if (result.state === 'collect-error') {
+    return `le fichier de test de l'étape ${name(step)} ne s'est pas collecté, aucun de ses tests n'a tourné${detail(result)} — ${cause(toolingWorks)} Rien ne dit que la solution est en cause.`
+  }
+  return `la solution de l'étape ${name(step)} ne passe pas ses propres tests${detail(result)}. Si la solution de l'auteur ne passe pas, l'étudiant n'a aucune chance.`
+}
+
 function detail(result: Classification): string {
   const line = result.message?.split('\n')[0]?.trim()
-  return line === undefined || line === '' ? '' : ` (${line})`
+  if (line === undefined || line === '') return ''
+  const human = humanize(result.message ?? '', phaseOf(result.state))
+  return human === undefined ? ` (${line})` : ` (${human.split('\n')[0] ?? ''} — ${line})`
+}
+
+// --- Journal de diagnostic (D33) -----------------------------------------------------------
+
+/**
+ * Le message d'erreur ne porte que la première ligne : une stack entière dans une
+ * notification est illisible. Mais la jeter, c'est ce qui a fait chercher au mauvais
+ * endroit trois fois de suite. Elle part donc **entière** dans un fichier, sous `.learn/`
+ * comme tout ce qu'on écrit, et le message donne son chemin.
+ *
+ * Best effort : si le journal ne peut pas être écrit, le message reste ce qu'il était.
+ * Perdre le diagnostic est déjà mauvais, échouer l'import à cause du journal serait pire.
+ */
+const DIAGNOSTIC_LOG = '.learn/verify.log'
+
+interface Faulty {
+  readonly step: Parcours['steps'][number]
+  readonly result: Classification
+}
+
+async function keepDiagnostic(
+  root: ResolvedPath,
+  raw: RawResult,
+  faulty: readonly Faulty[]
+): Promise<string> {
+  const sections = faulty.map(
+    (f) => `--- étape ${f.step.id} — ${f.step.title} (${f.result.state}) ---\n${f.result.message ?? '(aucun message)'}`
+  )
+  // La stderr du processus Vitest : une collecte cassée par la config ou par un plugin
+  // n'écrit rien dans le rapport JSON, sa stack n'est que là.
+  if (raw.stderr.trim() !== '') sections.push(`--- sortie d'erreur de Vitest ---\n${raw.stderr.trim()}`)
+
+  const file = path.join(root, DIAGNOSTIC_LOG)
+  try {
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.writeFile(file, `${new Date().toISOString()}\n\n${sections.join('\n\n')}\n`, 'utf8')
+  } catch {
+    return ''
+  }
+  return ` Diagnostic complet (stack entière) : ${file}`
 }
 
 /**

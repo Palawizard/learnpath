@@ -133,12 +133,12 @@ describe('buildViewModel — les quatre états du dernier run', () => {
     expect(model?.status.detail).toBeUndefined()
   })
 
-  it('parse-error est discret et porte son message', () => {
+  it('collect-error est discret et porte son message', () => {
     const model = buildViewModel(
       parcours,
       state(),
       outcome({
-        result: { state: 'parse-error', message: "SyntaxError: Unexpected token '}'", failures: [] },
+        result: { state: 'collect-error', message: "SyntaxError: Unexpected token '}'", failures: [] },
         summary: "Le fichier n'est pas encore valide.",
       })
     )

@@ -2,7 +2,7 @@ import type { Parcours, Step } from './parcours.js'
 import type { Outcome, Regression } from './progression.js'
 import type { ParcoursState } from './state.js'
 import type { Classification } from '../runner/classify.js'
-import { humanize } from './humanize.js'
+import { humanize, phaseOf } from './humanize.js'
 
 /**
  * Ce que le panneau affiche, décrit sans une ligne de HTML et sans `vscode`. La webview
@@ -142,7 +142,7 @@ function statusOf(outcome: Outcome | undefined): StatusView {
     // Rien du tout : afficher une erreur ici est faux et décourageant (UX.md).
     case 'missing-file':
       return { kind: 'none', summary: '', advanced: false }
-    case 'parse-error':
+    case 'collect-error':
       return {
         kind: 'progress',
         summary: outcome.summary,
@@ -183,7 +183,7 @@ function regressionView(regression: Regression): RegressionView {
 function detailOf(result: Classification): { detail?: string; explained?: string } {
   if (result.message === undefined) return {}
   const detail = firstLines(result.message)
-  const explained = humanize(result.message)
+  const explained = humanize(result.message, phaseOf(result.state))
   return { detail, ...(explained === undefined ? {} : { explained }) }
 }
 

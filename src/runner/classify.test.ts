@@ -27,10 +27,27 @@ describe('classify — les quatre états', () => {
     expect(c.message).toBeUndefined()
   })
 
-  it('fichier présent mais syntaxiquement invalide : parse-error', () => {
+  // D33 : ici c'est `src/panier.js` — le code de l'étudiant — qui est mal formé, et Vitest
+  // rapporte l'erreur sur le fichier de test, **sans aucun chemin**. Le texte ne permet donc
+  // pas de dire lequel des deux est en cause, et l'état ne l'affirme plus : `collect-error`
+  // dit seulement « aucun test n'a été collecté », ce qui est tout ce qu'on sait.
+  it("fichier présent mais syntaxiquement invalide : collect-error, sans coupable désigné", () => {
     const c = classify(fixture('b-syntaxe-invalide'), etape('1.1'))
-    expect(c.state).toBe('parse-error')
+    expect(c.state).toBe('collect-error')
     expect(c.message).toContain('invalid JS syntax')
+  })
+
+  // D33 : même cause que (a) — le fichier attendu n'est pas encore écrit — mais Vite 8 le
+  // dit autrement. Ne connaître qu'une formulation faisait passer toute étape non commencée
+  // pour une erreur de collecte sur cette pile.
+  it("Vite 8 : « Failed to resolve import » est aussi un fichier pas encore écrit", () => {
+    const c = classify(fixture('h-import-non-resolu-vite8'), {
+      ...etape('1.1'),
+      tests: { ...etape('1.1').tests, file: '.learn/tests/step-1.1.spec.jsx' },
+      expected: { ...etape('1.1').expected, files: ['src/Compteur.jsx'] },
+    })
+    expect(c.state).toBe('missing-file')
+    expect(c.message).toBeUndefined()
   })
 
   it('assertion en échec : assertion-failed, avec attendu / reçu', () => {
@@ -60,7 +77,7 @@ describe('classify — pièges', () => {
 
   it('un module introuvable hors expected.files n\'est pas avalé en missing-file', () => {
     const c = classify(fixture('f-module-inattendu'), etape('1.1'))
-    expect(c.state).toBe('parse-error')
+    expect(c.state).toBe('collect-error')
     expect(c.message).toContain('helpers-inexistants.js')
   })
 
@@ -70,8 +87,9 @@ describe('classify — pièges', () => {
   })
 
   it('une étape sans aucun résultat remonte une erreur, pas un vert', () => {
-    const c = classify({ success: true, numTotalTests: 0, files: [] }, etape('1.1'))
-    expect(c.state).toBe('parse-error')
+    const c = classify({ success: true, numTotalTests: 0, files: [], stderr: '' }, etape('1.1'))
+    // D33 : on ne sait pas pourquoi Vitest n'a pas atteint le fichier. On ne l'invente pas.
+    expect(c.state).toBe('collect-error')
     expect(c.message).toContain('.learn/tests/step-1.1.spec.js')
   })
 

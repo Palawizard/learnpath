@@ -8,6 +8,11 @@ export interface Runner {
   /** Seule valeur admise pour l'instant. La commande est construite par l'extension, D14. */
   readonly kind: 'vitest'
   readonly cwd?: string
+  /**
+   * Environnement de test (D31). Absent = déduit : « node », sauf si `setup` installe
+   * jsdom ou happy-dom. Un parcours qui teste un composant doit le déclarer.
+   */
+  readonly environment?: 'node' | 'jsdom' | 'happy-dom' | 'edge-runtime'
   readonly setup?: readonly string[]
 }
 

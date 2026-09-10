@@ -20,6 +20,12 @@ export interface RawResult {
   readonly success: boolean
   readonly numTotalTests: number
   readonly files: readonly TestFile[]
+  /**
+   * Sortie d'erreur du processus Vitest, entière. Une erreur de collecte due à la config
+   * ou à un plugin n'apparaît nulle part dans le rapport JSON : elle n'existe que là.
+   * `parseResult` ne la connaît pas, c'est `run` qui la remplit.
+   */
+  readonly stderr: string
 }
 
 /**
@@ -46,6 +52,7 @@ export function parseResult(content: string): Result<RawResult> {
   const results = Array.isArray(report['testResults']) ? report['testResults'] : []
 
   return ok({
+    stderr: '',
     success: report['success'] === true,
     numTotalTests: typeof report['numTotalTests'] === 'number' ? report['numTotalTests'] : 0,
     files: results.map(readFile),

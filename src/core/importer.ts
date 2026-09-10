@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { type Result, ok, err } from './result.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import { writeFileAtomic } from './atomic.js'
-import { launcher } from './exec.js'
+import { launcher, notFoundMessage } from './exec.js'
 import type { Parcours } from './parcours.js'
 import { createState, writeState } from './state.js'
 import { type RunAll, type RunSteps, verifyAllRed, verifyAllGreen } from './verify.js'
@@ -69,12 +69,36 @@ export async function importParcours(
   // qu'il était, pas seulement supprimer `.learn/`.
   const gitignoreBefore = await readOrNull(paths.value.gitignore)
   let gitignoreUpdated = false
-  const rollbackAll = async (): Promise<void> => {
+
+  /**
+   * D28 : le fichier de parcours est la **seule** chose non reproductible de tout le
+   * système — un LLM ne régénère jamais deux fois la même sortie, et le générateur écrit
+   * justement dans `.learn/parcours/<slug>.json`, que le rollback effaçait. On le met de
+   * côté avant de nettoyer et on le repose ensuite. Retourne son chemin relatif quand il
+   * a été conservé, `null` quand il n'y avait rien à conserver.
+   */
+  const rollbackAll = async (): Promise<string | null> => {
+    const parcoursContent = await readOrNull(paths.value.parcoursFile)
+    // D33 : même raison pour le journal de diagnostic. Il est écrit par la vérification
+    // juste avant qu'elle échoue, il vit sous `.learn/`, et le message d'erreur donne son
+    // chemin — le nettoyage l'effaçait, laissant l'utilisateur devant un chemin mort.
+    const journalContent = await readOrNull(paths.value.diagnosticLog)
     await rollback()
-    if (!gitignoreUpdated) return
-    if (gitignoreBefore === null) await fs.rm(paths.value.gitignore, { force: true })
-    else await writeFileAtomic(paths.value.gitignore, gitignoreBefore)
+    if (parcoursContent !== null) await writeFileAtomic(paths.value.parcoursFile, parcoursContent)
+    if (journalContent !== null) await writeFileAtomic(paths.value.diagnosticLog, journalContent)
+
+    if (gitignoreUpdated) {
+      if (gitignoreBefore === null) await fs.rm(paths.value.gitignore, { force: true })
+      else await writeFileAtomic(paths.value.gitignore, gitignoreBefore)
+    }
+    return parcoursContent === null ? null : relative(workspaceRoot, paths.value.parcoursFile)
   }
+
+  /** Ce qu'on dit à l'utilisateur après un rollback : où est son parcours, ou rien. */
+  const kept = (file: string | null): string =>
+    file === null
+      ? "Rien n'a été conservé."
+      : `Le fichier de parcours est conservé, rien d'autre : ${file}.`
 
   try {
     for (const step of parcours.steps) {
@@ -84,7 +108,10 @@ export async function importParcours(
       created.push(file.value)
     }
 
-    await writeFileAtomic(paths.value.vitestConfig, vitestConfig())
+    await writeFileAtomic(
+      paths.value.vitestConfig,
+      vitestConfig(await findViteConfig(paths.value.root), environmentOf(parcours))
+    )
     created.push(paths.value.vitestConfig)
 
     await writeFileAtomic(paths.value.parcoursFile, `${JSON.stringify(parcours, null, 2)}\n`)
@@ -97,23 +124,24 @@ export async function importParcours(
 
     gitignoreUpdated = await updateGitignore(paths.value.gitignore)
   } catch (error) {
-    await rollbackAll()
-    return err(`L'écriture du parcours a échoué, rien n'a été conservé : ${message(error)}`)
+    const saved = await rollbackAll()
+    return err(`L'écriture du parcours a échoué : ${message(error)}. ${kept(saved)}`)
   }
 
   const setup = parcours.runner.setup ?? []
   if (setup.length > 0) {
     if (!(await hooks.confirm(setup))) {
-      await rollbackAll()
-      return err("Import annulé : les commandes d'installation n'ont pas été acceptées.")
+      const saved = await rollbackAll()
+      return err(`Import annulé : les commandes d'installation n'ont pas été acceptées. ${kept(saved)}`)
     }
     const exec = hooks.exec ?? runCommand
     for (const command of setup) {
       hooks.log(`$ ${command}`)
       const result = await exec(command, paths.value.cwd, hooks.log)
       if (!result.ok) {
-        await rollbackAll()
-        return err(`La commande d'installation « ${command} » a échoué : ${result.error}`)
+        const saved = await rollbackAll()
+        return err(`La commande d'installation « ${command} » a échoué : ${result.error}
+${kept(saved)}`)
       }
     }
   }
@@ -127,25 +155,25 @@ export async function importParcours(
   say('Vérification : toutes les étapes doivent être rouges avant écriture.')
   const red = await verifyAllRed(parcours, paths.value.root, hooks.runAll)
   if (!red.ok) {
-    await rollbackAll()
-    return err(`${red.error} Rien n'a été conservé.`)
+    const saved = await rollbackAll()
+    return err(`${red.error} ${kept(saved)}`)
   }
 
   // D21 : et les solutions, appliquées dans l'ordre, doivent laisser toutes les étapes
   // vertes. Même rollback : un parcours dont les solutions se cassent entre elles ne
-  // laisse rien derrière lui.
+  // laisse derrière lui que son propre fichier, dont l'auteur a besoin pour le corriger.
   const green = await verifyAllGreen(parcours, paths.value.root, {
     ...(hooks.runSteps ? { execute: hooks.runSteps } : {}),
     log: say,
   })
   if (!green.ok) {
-    await rollbackAll()
-    return err(`${green.error} Rien n'a été conservé.`)
+    const saved = await rollbackAll()
+    return err(`${green.error} ${kept(saved)}`)
   }
 
   return ok({
     slug: parcours.slug,
-    writtenFiles: created.map((file) => path.relative(path.resolve(workspaceRoot), file)),
+    writtenFiles: created.map((file) => relative(workspaceRoot, file)),
     setupCommands: setup,
     gitignoreUpdated,
   })
@@ -160,6 +188,7 @@ interface Targets {
   readonly parcoursFile: ResolvedPath
   readonly vitestConfig: ResolvedPath
   readonly stateFile: ResolvedPath
+  readonly diagnosticLog: ResolvedPath
   readonly gitignore: ResolvedPath
   readonly cwd: ResolvedPath
 }
@@ -171,6 +200,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   const parcoursFile = safeResolve(root, `.learn/parcours/${parcours.slug}.json`)
   const vitestConfig = safeResolve(root, '.learn/vitest.config.mts')
   const stateFile = safeResolve(root, '.learn/state.json')
+  const diagnosticLog = safeResolve(root, '.learn/verify.log')
   const gitignore = safeResolve(root, '.gitignore')
   // `runner.cwd` vaut « . » dans la quasi-totalité des parcours : c'est le seul endroit
   // où la racine du workspace est un chemin acceptable.
@@ -182,6 +212,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   if (!parcoursFile.ok) return err(`Le slug « ${parcours.slug} » ne donne pas un nom de fichier valide : ${parcoursFile.error}`)
   if (!vitestConfig.ok) return err(vitestConfig.error)
   if (!stateFile.ok) return err(stateFile.error)
+  if (!diagnosticLog.ok) return err(diagnosticLog.error)
   if (!gitignore.ok) return err(gitignore.error)
   if (!cwd.ok) return err(`Runner, champ cwd : ${cwd.error}`)
 
@@ -192,6 +223,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
     parcoursFile: parcoursFile.value,
     vitestConfig: vitestConfig.value,
     stateFile: stateFile.value,
+    diagnosticLog: diagnosticLog.value,
     gitignore: gitignore.value,
     cwd: cwd.value,
   })
@@ -219,21 +251,64 @@ async function findSlugConflict(parcoursDir: ResolvedPath, slug: string): Promis
   )
 }
 
+/** Noms de config Vite reconnus, dans l'ordre où Vite les cherche lui-même. */
+const VITE_CONFIG_NAMES = [
+  'vite.config.ts',
+  'vite.config.mts',
+  'vite.config.cts',
+  'vite.config.js',
+  'vite.config.mjs',
+  'vite.config.cjs',
+] as const
+
+/**
+ * D31 : la config du projet est **héritée**, pas reconstruite. Un projet React a besoin
+ * d'`@vitejs/plugin-react`, un monorepo de ses alias, un projet Vue de son plugin — les
+ * deviner un par un serait faux au prochain écosystème. On ne lit que `vite.config.*` :
+ * jamais `vitest.config.*`, qui est la config de test du projet et reste hors de portée
+ * (D3).
+ */
+async function findViteConfig(root: ResolvedPath): Promise<string | undefined> {
+  for (const name of VITE_CONFIG_NAMES) {
+    if (await exists(path.join(root, name))) return name
+  }
+  return undefined
+}
+
+/**
+ * Une config Vite ne contient pas d'environnement de test : il n'y a rien à hériter, et
+ * `node` casse tout test de composant (« document is not defined »). Le parcours le
+ * déclare dans `runner.environment` ; sans ça, on lit ce que son `setup` installe, ce qui
+ * rattrape les parcours écrits avant D31.
+ */
+function environmentOf(parcours: Parcours): string {
+  if (parcours.runner.environment !== undefined) return parcours.runner.environment
+  // « npm i -D vitest jsdom » : on cherche le paquet, pas la sous-chaîne — une version
+  // suffixée (« jsdom@24 ») compte, un « xjsdom » non.
+  const setup = (parcours.runner.setup ?? []).join(' ')
+  if (/(^|\s)happy-dom(@|\s|$)/.test(setup)) return 'happy-dom'
+  if (/(^|\s)jsdom(@|\s|$)/.test(setup)) return 'jsdom'
+  return 'node'
+}
+
 /**
  * `.mts` et non `.ts` : le paquet de l'utilisateur n'est pas forcément `type: module`, et
  * Vite avertit alors sur une config `.ts` qui utilise `import`.
  * `root` pointe sur le workspace, donc les tests de `.learn/tests/` atteignent `src/` du
- * projet par un chemin relatif normal, et la config de test du projet n'est jamais lue.
+ * projet par un chemin relatif normal.
+ *
+ * Quand le projet a une config Vite, on part de la sienne (plugins, alias, `resolve`) et
+ * on lui ajoute notre bloc `test`. Son propre bloc `test` est retiré : c'est la config de
+ * test du projet, on ne l'applique pas — sinon ses `include` s'ajouteraient aux nôtres et
+ * la vérification à l'import lancerait ses tests à lui (D3, D31).
  */
-function vitestConfig(): string {
-  return `// Généré par LearnPath. Ne pas éditer : réécrit à chaque import.
-// La configuration de test du projet n'est ni lue ni modifiée.
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
+/** Le bloc fusionné vit dans une fonction : on le décale pour que le fichier reste lisible. */
+function indent(block: string): string {
+  return block.split('\n').join('\n  ')
+}
 
-const workspaceRoot = fileURLToPath(new URL('..', import.meta.url))
-
-export default defineConfig({
+function vitestConfig(viteConfig: string | undefined, environment: string): string {
+  const notre = `{
   root: workspaceRoot,
   // Par défaut Vite écrit son cache dans node_modules/. Or la vérification des solutions
   // (D21) lance ces tests dans une copie du projet où node_modules est une **jonction**
@@ -242,8 +317,35 @@ export default defineConfig({
   cacheDir: fileURLToPath(new URL('.vite', import.meta.url)),
   test: {
     include: ['.learn/tests/**/*.{spec,test}.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
-    environment: 'node',
+    environment: '${environment}',
   },
+}`
+
+  const entete = `// Généré par LearnPath. Ne pas éditer : réécrit à chaque import.
+// Aucun fichier du projet n'est modifié : sa config de test n'est ni lue ni appliquée.
+import { fileURLToPath } from 'node:url'
+`
+
+  if (viteConfig === undefined) {
+    return `${entete}import { defineConfig } from 'vitest/config'
+
+const workspaceRoot = fileURLToPath(new URL('..', import.meta.url))
+
+export default defineConfig(${notre})
+`
+  }
+
+  return `${entete}import { defineConfig, mergeConfig } from 'vitest/config'
+// La config Vite du projet : ses plugins et ses alias valent aussi pour les tests.
+import projet from '../${viteConfig}'
+
+const workspaceRoot = fileURLToPath(new URL('..', import.meta.url))
+
+export default defineConfig(async (env) => {
+  const resolu = typeof projet === 'function' ? await projet(env) : await projet
+  // Son bloc \`test\` est écarté : la config de test du projet ne s'applique pas ici.
+  const { test: _test, ...base } = resolu
+  return mergeConfig(base, ${indent(notre)})
 })
 `
 }
@@ -281,16 +383,30 @@ function runCommand(
   const [binary, ...args] = command.trim().split(/\s+/)
   if (binary === undefined) return Promise.resolve(err('la commande est vide'))
   const launch = launcher(binary, args)
+  // Sans ça, l'utilisateur reçoit « spawn npm ENOENT » et personne ne sait ce qui a été
+  // cherché (D29). On explique avant même de tenter le lancement.
+  if (!launch.resolved) return Promise.resolve(err(notFoundMessage(command, launch)))
 
   return new Promise((resolve) => {
     const child = spawn(launch.file, [...launch.args], { cwd, shell: false, stdio: ['ignore', 'pipe', 'pipe'] })
     child.stdout.on('data', (chunk: Buffer) => log(chunk.toString()))
     child.stderr.on('data', (chunk: Buffer) => log(chunk.toString()))
-    child.on('error', (error) => resolve(err(message(error))))
+    child.on('error', (error) =>
+      resolve(
+        err(
+          isNotFound(error) ? notFoundMessage(command, launch) : message(error)
+        )
+      )
+    )
     child.on('close', (code) =>
       resolve(code === 0 ? ok(undefined) : err(`code de sortie ${code ?? 'inconnu'}`))
     )
   })
+}
+
+/** Chemin d'affichage, toujours en barres obliques : il finit dans des messages. */
+function relative(root: string, file: string): string {
+  return path.relative(path.resolve(root), file).replace(/\\/g, '/')
 }
 
 async function readOrNull(file: ResolvedPath): Promise<string | null> {
@@ -308,6 +424,12 @@ async function exists(target: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/** `ENOENT`/`EINVAL` sur un lancement : le binaire résolu n'était pas lançable après tout. */
+function isNotFound(error: unknown): boolean {
+  const code = (error as { code?: unknown }).code
+  return code === 'ENOENT' || code === 'EINVAL'
 }
 
 function message(error: unknown): string {

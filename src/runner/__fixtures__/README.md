@@ -45,3 +45,13 @@ Deux constats qui ont dicté `classify.ts` :
     pas distinguer les deux cas, et le message traduit ne le prétend pas ;
   - un **dépassement de délai** perd son texte dans le rapport JSON, il ne reste que
     `Error: STACK_TRACE_ERROR`. « Test timed out in 300ms » n'apparaît nulle part.
+
+- `h-import-non-resolu-vite8.json` — sortie réelle de **Vite 8 / @vitejs/plugin-react 6 /
+  React 19 / Vitest 4**, capturée sur un parcours React d'une étape dont le fichier attendu
+  (`src/Compteur.jsx`) n'a pas encore été écrit. C'est le cas le plus banal qui soit — une
+  étape pas commencée — et Vite 8 ne le formule ni comme (a) ni comme (b) : `Failed to
+  resolve import "<spec>" from "<fichier>". Does the file exist?`, **sans** « Cannot find
+  module ». `classify.ts` ne connaissait que la formulation de (a) : sur cette pile, chaque
+  étape non commencée passait donc pour une erreur de collecte au lieu de « pas encore
+  commencée ». Troisième formulation d'une seule et même cause, avec `Cannot find package`
+  (alias du projet pointant un fichier absent).
