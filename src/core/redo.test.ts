@@ -92,6 +92,7 @@ async function repository(withPanier: boolean): Promise<void> {
   git('init', '--initial-branch=main')
   git('config', 'user.email', 'test@learnpath')
   git('config', 'user.name', 'Test')
+  git('config', 'core.autocrlf', 'false')
   await write('src/autre.js', 'export const autre = 1\n')
   if (withPanier) await write('src/panier.js', 'v0\n')
   git('add', '-A')

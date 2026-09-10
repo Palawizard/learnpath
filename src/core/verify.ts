@@ -235,7 +235,7 @@ async function keepDiagnostic(
   } catch {
     return ''
   }
-  return ` Diagnostic complet (stack entière) : ${file}`
+  return ` Diagnostic complet (stack entière) : ${DIAGNOSTIC_LOG}`
 }
 
 /**

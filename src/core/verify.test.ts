@@ -158,7 +158,7 @@ describe('verifyAllGreen', { timeout: 120_000 }, () => {
     expect(r.error).toContain('la cause est dans ce fichier de test ou dans ce qu\'il importe')
     expect(r.error).not.toContain('ne passe pas ses propres tests')
     // Point 3 : la stack complète est conservée, et le message dit où.
-    expect(r.error).toContain('.learn/verify.log')
+    expect(r.error).toContain('Diagnostic complet (stack entière) : .learn/verify.log')
   })
 
   it("distingue la solution qui ne passe pas ses propres tests", async () => {

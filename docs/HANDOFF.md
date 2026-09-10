@@ -65,6 +65,10 @@ Raisonnement complet dans **D38**.
 - Version **0.1.6** ; README, architecture, UX, plan et point 28 de la QA manuelle à jour.
   `learnpath-0.1.6.vsix` a été généré puis installé dans VSCodium, qui confirme
   `palawizard.learnpath@0.1.6`.
+- Première CI de cette version : Linux était vert, Windows 20/22 révélait deux hypothèses
+  Unix. Les dépôts Git temporaires des tests fixent maintenant `core.autocrlf=false`, et
+  le message du journal affiche le chemin portable `.learn/verify.log` plutôt qu'un chemin
+  absolu avec les séparateurs de l'OS.
 
 ## Ce qui a été fait dans la session précédente
 
