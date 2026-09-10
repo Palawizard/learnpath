@@ -16,16 +16,29 @@ par un agent externe et importé comme un fichier.
    avoir besoin d'un appel réseau, tu as mal compris le projet : arrête-toi et demande.
 2. **Aucune API propriétaire.** Pas de `vscode.lm`, pas d'API proposée, pas de dépendance à
    Copilot. L'extension doit tourner à l'identique sur VSCodium. Voir `docs/RESEARCH.md`.
-3. **On ne touche jamais aux fichiers de l'utilisateur** en dehors de `.learn/`, sauf pour
-   les fichiers explicitement listés dans `expected.files` d'une étape, et uniquement quand
-   l'utilisateur clique sur « Solution ». Toute écriture ailleurs est un bug.
+3. **On ne touche aux fichiers de l'utilisateur hors de `.learn/` que sur un geste
+   explicite, et seulement dans les limites qu'il a vues.** Le bouton « Solution »
+   *affiche* la solution, il ne l'écrit pas (D34) ; `verifyAllGreen` écrit les solutions
+   dans sa copie temporaire, jamais dans le projet. La seule écriture dans le code de
+   l'utilisateur est **« Refaire l'étape »** (D36) : elle est bornée aux `expected.files`
+   de l'étape visée, chaque chemin repasse par `safeResolve`, et une confirmation modale
+   les nomme un par un avant la moindre écriture. Toute écriture qui sort de cette liste
+   est un bug. Le déplacement des tests en fin de parcours (D17) suit la même règle :
+   liste montrée, puis écriture.
+   `src/core/git.ts` écrit dans le dépôt (des objets et des références sous
+   `refs/learnpath*`), jamais sur une branche : pas de `reset`, pas de `rebase`, pas de
+   `commit --amend`, jamais `git add -A`.
 4. **La config de test du projet est sacrée.** On écrit notre propre
    `.learn/vitest.config.ts` et on lance avec `--config`. On ne modifie jamais le
    `vitest.config.*` existant ni le champ `scripts.test` du `package.json` de l'utilisateur.
 5. **Un parcours importé est une donnée non fiable.** Il vient d'un LLM. Valider contre le
    JSON Schema, valider les chemins (aucun `..`, aucun chemin absolu), et refuser proprement
    plutôt que de planter.
-6. **Pas de dépendance runtime lourde.** L'extension doit rester légère. Actuellement
+6. **Le prompt de génération n'existe qu'en un exemplaire :**
+   `prompts/generer-parcours.md`. L'extension le lit, la spec et le README y renvoient. Ne
+   le recopie nulle part — il a divergé une fois, et un parcours a été généré avec une
+   version périmée (D37).
+7. **Pas de dépendance runtime lourde.** L'extension doit rester légère. Actuellement
    autorisées : `ajv` pour la validation de schéma. Toute nouvelle dépendance runtime se
    discute d'abord dans `docs/DECISIONS.md`.
 

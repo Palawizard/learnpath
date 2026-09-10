@@ -1,80 +1,79 @@
 import * as vscode from 'vscode'
 import type { ViewModel } from '../core/viewmodel'
-import { escapeHtml, renderHeader, renderMain, renderStatus } from './render'
+import { escapeHtml, renderHeader, renderMain, renderStatus, renderWelcome } from './render'
 import { renderShell } from './shell'
-import { type WebviewMessage, parseWebviewMessage } from './protocol'
+import { type HostMessage, type WebviewMessage, parseWebviewMessage } from './protocol'
 
 const VIEW_TYPE = 'learnpath.parcours'
 
 /**
- * Panneau du parcours. Singleton : ouvrir deux fois ne crée pas deux panneaux, le state
- * du parcours n'aurait pas de raison d'être dupliqué.
+ * Panneau du parcours. C'est une vue de la barre d'activité (`WebviewViewProvider`) et
+ * plus un onglet d'éditeur : l'extension avait une icône nulle part et tout passait par la
+ * palette. Le fournisseur vit toute la session, la webview, elle, va et vient — d'où le
+ * dernier message rendu gardé ici et repoussé sur `ready`.
  *
  * La classe ne décide rien. Elle rend un `ViewModel` (construit par `src/core`) et
  * remonte les messages validés. Tout ce qui est testable est dans `render.ts`.
  */
-export class ParcoursPanel {
+export class ParcoursPanel implements vscode.WebviewViewProvider {
   private static instance: ParcoursPanel | undefined
 
-  /** Le panneau ouvert, s'il y en a un. Le watcher lui pousse le view model. */
+  /** Le fournisseur enregistré. Le watcher lui pousse le view model. */
   static get current(): ParcoursPanel | undefined {
     return ParcoursPanel.instance
   }
 
-  /** Dernier modèle rendu, renvoyé quand la webview signale qu'elle est prête. */
-  private model: ViewModel | undefined
-  private handler: ((message: WebviewMessage) => void) | undefined
-
-  private readonly panel: vscode.WebviewPanel
-  private readonly disposables: vscode.Disposable[] = []
-
-  private constructor(panel: vscode.WebviewPanel) {
-    this.panel = panel
-    this.panel.webview.html = renderShell(createNonce())
-    this.panel.onDidDispose(() => this.dispose(), null, this.disposables)
-    this.panel.webview.onDidReceiveMessage(
-      (raw: unknown) => {
-        const message = parseWebviewMessage(raw)
-        if (message === undefined) return
-        // Une webview prête a perdu son contenu : on lui repousse le modèle courant.
-        if (message.type === 'ready') {
-          this.update(this.model)
-          return
-        }
-        this.handler?.(message)
-      },
-      null,
-      this.disposables
-    )
+  /** Un seul fournisseur pour la vie de l'extension. */
+  static register(): vscode.Disposable {
+    ParcoursPanel.instance ??= new ParcoursPanel()
+    return vscode.window.registerWebviewViewProvider(VIEW_TYPE, ParcoursPanel.instance, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
   }
 
   /**
-   * Ouvre le panneau **sans jamais prendre le focus**. `preserveFocus` à la création comme
-   * au `reveal` : voler le curseur pendant que l'utilisateur tape est rédhibitoire, et
+   * Révèle la vue **sans jamais prendre le focus**. `<viewId>.focus` accepte
+   * `preserveFocus` : voler le curseur pendant que l'utilisateur tape est rédhibitoire, et
    * l'ouverture comme le passage à l'étape suivante arrivent pendant qu'il écrit.
    */
-  static show(column?: vscode.ViewColumn): ParcoursPanel {
-    const viewColumn = column ?? vscode.ViewColumn.Beside
+  static show(): void {
+    void vscode.commands.executeCommand(`${VIEW_TYPE}.focus`, { preserveFocus: true })
+  }
 
-    if (ParcoursPanel.instance) {
-      ParcoursPanel.instance.panel.reveal(viewColumn, true)
-      return ParcoursPanel.instance
-    }
+  /** Dernier message rendu, repoussé quand la webview signale qu'elle est prête. */
+  private last: HostMessage | undefined
+  private handler: ((message: WebviewMessage) => void) | undefined
+  private view: vscode.WebviewView | undefined
 
-    const panel = vscode.window.createWebviewPanel(
-      VIEW_TYPE,
-      'LearnPath',
-      { viewColumn, preserveFocus: true },
-      {
-        enableScripts: true,
-        // L'onglet masqué puis réaffiché retrouve son contenu et son scroll. Le script
-        // sauvegarde aussi son modèle via `setState`, au cas où le contexte serait perdu.
-        retainContextWhenHidden: true,
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.view = view
+    view.webview.options = { enableScripts: true }
+    view.webview.html = renderShell(createNonce())
+    view.onDidDispose(() => {
+      this.view = undefined
+    })
+    view.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseWebviewMessage(raw)
+      if (message === undefined) return
+      // Une webview prête a perdu son contenu : on lui repousse le dernier rendu.
+      if (message.type === 'ready') {
+        this.post(this.last)
+        return
       }
-    )
-
-    ParcoursPanel.instance = new ParcoursPanel(panel)
-    return ParcoursPanel.instance
+      // L'import est le seul geste possible sans parcours : il n'a pas de session à qui
+      // s'adresser, il passe donc par la commande.
+      if (message.type === 'import') {
+        void vscode.commands.executeCommand('learnpath.import')
+        return
+      }
+      // Composer le prompt n'a pas non plus de session à qui s'adresser, et reste
+      // disponible avec un parcours en cours : on génère un parcours par fonctionnalité.
+      if (message.type === 'generatePrompt') {
+        void vscode.commands.executeCommand('learnpath.generatePrompt')
+        return
+      }
+      this.handler?.(message)
+    })
   }
 
   /** Les clics de la webview, déjà validés. */
@@ -84,9 +83,8 @@ export class ParcoursPanel {
 
   update(model: ViewModel | undefined): void {
     if (model === undefined) return
-    this.model = model
-    this.panel.title = `LearnPath — ${model.parcoursTitle}`
-    void this.panel.webview.postMessage({
+    if (this.view !== undefined) this.view.description = model.parcoursTitle
+    this.post({
       type: 'render',
       stepId: model.stepId,
       header: renderHeader(model),
@@ -95,9 +93,22 @@ export class ParcoursPanel {
     })
   }
 
+  /** Aucun parcours dans ce dossier : la vue dit quoi faire au lieu de rester vide. */
+  showWelcome(): void {
+    this.handler = undefined
+    if (this.view !== undefined) this.view.description = undefined
+    this.post({
+      type: 'render',
+      stepId: '',
+      header: '<h1>LearnPath</h1>',
+      main: renderWelcome(),
+      status: '',
+    })
+  }
+
   /** Erreur de session : le panneau le dit plutôt que de rester sur un contenu périmé. */
   showError(message: string): void {
-    void this.panel.webview.postMessage({
+    this.post({
       type: 'render',
       stepId: '',
       header: '<h1>LearnPath</h1>',
@@ -106,16 +117,14 @@ export class ParcoursPanel {
     })
   }
 
-  dispose(): void {
-    ParcoursPanel.instance = undefined
-    this.panel.dispose()
-    for (const d of this.disposables.splice(0)) {
-      d.dispose()
-    }
+  private post(message: HostMessage | undefined): void {
+    if (message === undefined) return
+    this.last = message
+    void this.view?.webview.postMessage(message)
   }
 }
 
-function createNonce(): string {
+export function createNonce(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let nonce = ''
   for (let i = 0; i < 32; i++) {

@@ -8,6 +8,7 @@ import { launcher, notFoundMessage } from './exec.js'
 import type { Parcours } from './parcours.js'
 import { createState, writeState } from './state.js'
 import { type RunAll, type RunSteps, verifyAllRed, verifyAllGreen } from './verify.js'
+import { checkpointStart, writeBaseRef } from './redo.js'
 
 export interface ImportHooks {
   /**
@@ -27,6 +28,8 @@ export interface ImportHooks {
    * ça, l'utilisateur regarde une fenêtre figée pendant une dizaine de secondes.
    */
   readonly progress?: (message: string) => void
+  /** `learnpath.gitCheckpoints`. À `false`, aucun point de restauration n'est posé (D36). */
+  readonly gitCheckpoints?: boolean
 }
 
 export interface ImportReport {
@@ -35,6 +38,8 @@ export interface ImportReport {
   readonly writtenFiles: readonly string[]
   readonly setupCommands: readonly string[]
   readonly gitignoreUpdated: boolean
+  /** Pourquoi la reprise d'étape est indisponible pour ce projet (D36). Absent : elle l'est. */
+  readonly checkpointsReason?: string
 }
 
 /** Seule entrée ajoutée au `.gitignore` : la progression. Le rapport de test, lui, est
@@ -49,6 +54,11 @@ export async function importParcours(
 ): Promise<Result<ImportReport>> {
   const paths = resolveTargets(parcours, workspaceRoot)
   if (!paths.ok) return paths
+
+  // D36 : l'état de départ se mesure **avant** la moindre écriture — le `.gitignore` est
+  // un fichier suivi, et le setup va toucher le lock du gestionnaire de paquets. La
+  // référence, elle, n'est posée qu'une fois l'import réussi.
+  const checkpoint = await checkpointStart(paths.value.root, parcours, hooks.gitCheckpoints ?? true)
 
   const learnExisted = await exists(paths.value.learnDir)
   const conflict = await findSlugConflict(paths.value.parcoursDir, parcours.slug)
@@ -171,11 +181,21 @@ ${kept(saved)}`)
     return err(`${green.error} ${kept(saved)}`)
   }
 
+  let checkpointsReason = checkpoint.reason
+  if (checkpoint.head !== undefined) {
+    const base = await writeBaseRef(paths.value.root, parcours.slug, checkpoint.head)
+    if (!base.ok) checkpointsReason = base.error
+  }
+  if (checkpointsReason !== undefined) {
+    hooks.log(`Reprise d'étape indisponible : ${checkpointsReason}`)
+  }
+
   return ok({
     slug: parcours.slug,
     writtenFiles: created.map((file) => relative(workspaceRoot, file)),
     setupCommands: setup,
     gitignoreUpdated,
+    ...(checkpointsReason === undefined ? {} : { checkpointsReason }),
   })
 }
 

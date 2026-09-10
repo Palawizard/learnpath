@@ -193,51 +193,19 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 
 ---
 
-# Prompt de génération (à coller dans Claude Code / Codex)
+# Prompt de génération
 
-> **Ta tâche est d'écrire le fichier `.learn/parcours/<slug>.json`.** N'affiche pas son
-> contenu dans ta réponse : écris-le directement sur le disque et confirme le chemin.
->
-> Ce fichier est un parcours d'apprentissage au format JSON défini ci-dessous, construit à
-> partir de la fonctionnalité que je veux implémenter dans ce projet.
->
-> Contexte : lis le projet pour respecter ses conventions (style, structure de
-> dossiers, TS ou JS, gestionnaire de paquets).
->
-> Fonctionnalité voulue : <DÉCRIRE ICI>
-> Niveau de l'apprenant : <débutant | intermédiaire>
->
-> Contraintes :
-> - 5 à 10 étapes, une idée par étape, ~15 lignes de code max par étape
-> - Fige d'abord le `contract` (fichiers, exports, signatures), puis écris les tests
-> - Les tests portent sur le comportement observable uniquement
-> - Chaque `describe` commence par `step <id>`
-> - **Chaque `it()` est à l'intérieur d'un `describe()`**, jamais au niveau racine, et le
->   callback de `describe()` est **synchrone**, jamais `async` : sinon le fichier ne se
->   collecte pas et aucun test n'est exécuté
-> - Les tests des étapes précédentes doivent rester verts quand le code grossit
-> - `explanation` explique le POURQUOI et ne contient jamais la solution
-> - `hints` va du plus vague au plus précis, sans donner le code
-> - `solution` contient le **contenu complet et fonctionnel du fichier à ce stade** :
->   tout ce que les étapes précédentes ont fait écrire y est encore, en entier. Jamais un
->   extrait, jamais `// ... le reste inchangé ...` : ce texte est écrit tel quel sur le
->   disque de l'étudiant et remplace le fichier
-> - `runner` ne contient que `kind` (`"vitest"`), `cwd`, `environment` et `setup`.
->   N'invente ni `command` ni `filterFlag` : la commande de test est construite par
->   l'extension et ces champs sont refusés par le schéma. `setup` ne peut commencer que par
->   npm, npx, pnpm ou yarn.
-> - `runner.environment` vaut `"jsdom"` dès qu'un test monte un composant ou touche au DOM
->   (React, Vue, Svelte), `"node"` sinon. Les plugins et les alias du projet, eux, sont
->   hérités de son `vite.config.*` : n'essaie pas de les redéclarer, il n'y a pas de champ
->   pour ça.
->
-> Avant d'écrire le fichier, vérifie toi-même, en **exécutant réellement** les tests :
-> 1. chaque fichier de test **se collecte** : Vitest annonce le bon nombre de tests pour
->    ce fichier, même avant que le code de l'étudiant existe. Un fichier qui ne se collecte
->    pas (0 test, erreur au niveau du fichier) est mal formé — ce n'est pas un test rouge,
->    c'est un test qui n'existe pas, et l'import le refusera
-> 2. une fois collecté, chaque test **échoue** sur le projet actuel
-> 3. les solutions appliquées **dans l'ordre** font passer, après chaque étape N, les
->    tests des étapes 1 à N — pas seulement ceux de l'étape N
->
-> Puis écris le fichier et confirme son chemin. Ne recopie pas le JSON dans ta réponse.
+**Le prompt vit dans [`prompts/generer-parcours.md`](../prompts/generer-parcours.md), et
+nulle part ailleurs.** Il n'est recopié ni ici, ni dans le README, ni dans le code de la
+webview : il a existé en deux exemplaires divergents, et un parcours a été généré avec une
+version périmée — d'où D37.
+
+Trois champs y sont marqués, et eux seuls : `{{FONCTIONNALITE}}`, `{{NIVEAU}}` et
+`{{FICHIERS}}` (facultatif, sa ligne disparaît quand il est vide). `composePrompt`
+(`src/core/prompt.ts`) les substitue et **refuse** un gabarit dont un marqueur reste :
+un champ renommé se voit à la compilation du prompt, pas dans le presse-papiers de
+l'utilisateur.
+
+L'extension le compose elle-même — commande **LearnPath : Générer le prompt du parcours…**,
+ou le bouton « Générer le prompt » de l'accueil. Le prompt composé est affiché en entier et
+modifiable avant d'être copié : voir `UX.md`.

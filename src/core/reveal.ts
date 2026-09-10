@@ -1,6 +1,5 @@
 import { type Result, ok, err } from './result.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
-import { writeFileAtomic } from './atomic.js'
 import type { Step } from './parcours.js'
 import { type Session, currentStep } from './progression.js'
 import { revealHint, revealSolution, writeState } from './state.js'
@@ -27,12 +26,6 @@ export async function revealNextHint(session: Session): Promise<Result<Session>>
   return ok({ ...session, state })
 }
 
-export interface SolutionApplied {
-  readonly session: Session
-  /** Chemins relatifs écrits, pour l'affichage. */
-  readonly files: readonly string[]
-}
-
 export interface SolutionTarget {
   /** Chemin relatif, tel qu'il est écrit dans le parcours. */
   readonly file: string
@@ -45,7 +38,11 @@ export interface SolutionTarget {
  * être déclaré dans `expected.files` de cette étape-là, et chaque chemin repasse par
  * `safeResolve` contre la racine réelle. Le parcours a beau avoir été validé à l'import,
  * il est relu depuis le disque à chaque session : on ne lui refait pas confiance sur
- * parole. `verifyAllGreen` passe par ici aussi, contre sa copie temporaire.
+ * parole.
+ *
+ * Seul `verifyAllGreen` passe encore par ici, contre sa **copie temporaire** : c'est le
+ * dernier endroit qui écrit une solution sur disque. Le bouton « Solution », lui, ne
+ * touche plus au disque du tout (D34).
  */
 export function planSolution(root: string, step: Step): Result<readonly SolutionTarget[]> {
   const declared = new Set(step.expected.files)
@@ -68,19 +65,22 @@ export function planSolution(root: string, step: Step): Result<readonly Solution
   return ok(targets)
 }
 
-/** Écrit la solution de l'étape courante, après `planSolution`. */
-export async function applySolution(session: Session): Promise<Result<SolutionApplied>> {
+/**
+ * Marque l'étape courante comme révélée. **Aucune écriture hors de `.learn/`** : la
+ * solution est affichée dans le panneau et recopiée par l'utilisateur (D34). Écrire le
+ * fichier faisait perdre du travail en silence — VSCode ne recharge pas un buffer modifié,
+ * la sauvegarde suivante de l'utilisateur écrasait ce qu'on venait d'écrire.
+ */
+export async function revealCurrentSolution(session: Session): Promise<Result<Session>> {
   const step = currentStep(session)
   if (step === undefined) {
     return err(`L'étape « ${session.state.currentStepId} » n'existe pas dans le parcours.`)
   }
-
-  const targets = planSolution(session.root, step)
-  if (!targets.ok) return targets
-
-  for (const target of targets.value) await writeFileAtomic(target.path, target.content)
+  if (Object.keys(step.solution).length === 0) {
+    return err(`L'étape ${step.id} n'a pas de solution enregistrée.`)
+  }
 
   const state = revealSolution(session.state, step.id)
   await writeState(session.stateFile, state)
-  return ok({ session: { ...session, state }, files: targets.value.map((t) => t.file) })
+  return ok({ ...session, state })
 }

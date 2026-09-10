@@ -116,6 +116,19 @@ describe('isWatched', () => {
 })
 
 describe('runCurrentStep', () => {
+  it("un run annulé n'écrit pas le state", async () => {
+    const { execute } = executes(fixture('d-tout-passe'))
+    const controller = new AbortController()
+    controller.abort()
+
+    const r = await runCurrentStep(session('1.1'), { execute, signal: controller.signal })
+
+    expect(r.ok).toBe(true)
+    // Rien sur le disque : son remplaçant parlera, et une reprise d'étape a pu réécrire le
+    // state pendant que celui-ci tournait (D36).
+    await expect(fs.readFile(path.join(dir, '.learn/state.json'), 'utf8')).rejects.toThrow()
+  })
+
   it('lance l\'étape courante et toutes les précédentes', async () => {
     const { execute, calls } = executes(fixture('d-tout-passe'))
     await runCurrentStep(session('1.3'), { execute })

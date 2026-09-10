@@ -2,7 +2,7 @@
   "name": "learnpath",
   "displayName": "LearnPath",
   "description": "Joue des parcours d'apprentissage guidés dans ton propre projet",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "license": "MIT",
   "publisher": "Palawizard",
   "icon": "media/icon.png",
@@ -37,7 +37,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:.learn/parcours/*.json"
+    "workspaceContains:.learn/parcours/*.json",
+    "onView:learnpath.parcours"
   ],
   "contributes": {
     "commands": [
@@ -50,14 +51,54 @@
         "title": "LearnPath: Importer un parcours..."
       },
       {
+        "command": "learnpath.generatePrompt",
+        "title": "LearnPath: Générer le prompt du parcours..."
+      },
+      {
         "command": "learnpath.runStep",
-        "title": "LearnPath: Relancer les tests de l'étape"
+        "title": "LearnPath: Relancer les tests de l'étape",
+        "icon": "$(debug-rerun)"
       },
       {
         "command": "learnpath.reset",
         "title": "LearnPath: Réinitialiser le parcours"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "learnpath",
+          "title": "LearnPath",
+          "icon": "media/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "learnpath": [
+        {
+          "id": "learnpath.parcours",
+          "name": "Parcours",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "learnpath.runStep",
+          "when": "view == learnpath.parcours && learnpath.active",
+          "group": "navigation"
+        },
+        {
+          "command": "learnpath.reset",
+          "when": "view == learnpath.parcours && learnpath.active"
+        },
+        {
+          "command": "learnpath.generatePrompt",
+          "when": "view == learnpath.parcours"
+        }
+      ]
+    },
     "configuration": {
       "title": "LearnPath",
       "properties": {
@@ -65,6 +106,11 @@
           "type": "number",
           "default": 500,
           "description": "Délai avant lancement des tests après une sauvegarde."
+        },
+        "learnpath.gitCheckpoints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enregistrer chaque étape validée dans un commit git, sous refs/learnpath/, pour pouvoir refaire une étape avec le code d'avant. Ne touche ni ta branche, ni ton index, ni ton travail en cours, et ne commite que les fichiers déclarés par l'étape. Désactivée : aucun commit n'est créé et « Refaire l'étape » est indisponible."
         },
         "learnpath.autoAdvance": {
           "type": "boolean",

@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { applySolution, revealNextHint } from './reveal.js'
+import { planSolution, revealCurrentSolution, revealNextHint } from './reveal.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import type { Session } from './progression.js'
 import type { Parcours, Step } from './parcours.js'
@@ -87,44 +87,84 @@ describe('revealNextHint', () => {
   })
 })
 
-describe('applySolution', () => {
-  it("écrit le fichier et marque l'étape révélée, sans pénalité", async () => {
-    const result = await applySolution(session())
+/** Tout ce qui existe sous `root`, en chemins relatifs, dossiers compris. */
+async function tree(dir = root, prefix = ''): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true })
+  const out: string[] = []
+  for (const entry of entries) {
+    const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+    out.push(relative)
+    if (entry.isDirectory()) out.push(...(await tree(path.join(dir, entry.name), relative)))
+  }
+  return out.sort()
+}
+
+describe('revealCurrentSolution', () => {
+  it("marque l'étape révélée et écrit le state", async () => {
+    const result = await revealCurrentSolution(session())
     expect(result.ok).toBe(true)
     if (!result.ok) return
 
-    expect(result.value.files).toEqual(['src/panier.js'])
-    expect(await fs.readFile(path.join(root, 'src/panier.js'), 'utf8')).toBe('export const panier = 1\n')
-    expect(result.value.session.state.solutionsRevealed).toEqual(['1.1'])
+    expect(result.value.state.solutionsRevealed).toEqual(['1.1'])
 
     const onDisk = await readState(resolved('.learn/state.json'))
     expect(onDisk.ok && onDisk.value.solutionsRevealed).toEqual(['1.1'])
   })
 
-  it("refuse d'écrire un fichier absent de expected.files de l'étape courante", async () => {
+  /**
+   * Non-régression du bug qui a motivé D34 : la solution s'affiche, elle ne s'écrit plus.
+   * Écrire le fichier faisait perdre la tentative en cours — VSCode ne recharge pas un
+   * buffer modifié, la sauvegarde suivante écrasait ce qu'on venait d'écrire.
+   */
+  it("n'écrit rien en dehors de .learn/", async () => {
+    await fs.mkdir(path.join(root, 'src'), { recursive: true })
+    await fs.writeFile(path.join(root, 'src/panier.js'), 'ma tentative en cours\n')
+
+    const result = await revealCurrentSolution(session())
+    expect(result.ok).toBe(true)
+
+    // Le travail de l'utilisateur est intact, mot pour mot.
+    expect(await fs.readFile(path.join(root, 'src/panier.js'), 'utf8')).toBe(
+      'ma tentative en cours\n'
+    )
+    // Et rien d'autre n'est apparu ailleurs que dans .learn/.
+    expect(await tree()).toEqual(['.learn', '.learn/state.json', 'src', 'src/panier.js'])
+  })
+
+  it("n'écrit pas non plus le fichier quand il n'existait pas", async () => {
+    const result = await revealCurrentSolution(session())
+    expect(result.ok).toBe(true)
+    await expect(fs.readFile(path.join(root, 'src/panier.js'), 'utf8')).rejects.toThrow()
+  })
+
+  it("refuse une étape sans solution plutôt que de la marquer révélée en silence", async () => {
+    const result = await revealCurrentSolution(session([step({ solution: {} })]))
+    expect(result.ok).toBe(false)
+  })
+})
+
+/**
+ * `planSolution` ne sert plus qu'à `verifyAllGreen`, contre son bac à sable. Ses deux
+ * garde-fous restent testés là : c'est le dernier chemin qui écrit une solution.
+ */
+describe('planSolution', () => {
+  it("refuse un fichier absent de expected.files de l'étape", () => {
     const rogue = step({
       expected: { files: ['src/panier.js'] },
       solution: { 'src/panier.js': 'ok', '.bashrc': 'rm -rf ~' },
     })
-    const result = await applySolution(session([rogue]))
-    expect(result.ok).toBe(false)
-    // Rien du tout n'a été écrit : la validation passe avant la première écriture.
-    await expect(fs.readFile(path.join(root, 'src/panier.js'), 'utf8')).rejects.toThrow()
-    await expect(fs.readFile(path.join(root, '.bashrc'), 'utf8')).rejects.toThrow()
+    expect(planSolution(root, rogue).ok).toBe(false)
   })
 
-  it('refuse un chemin qui sort du projet même déclaré dans expected.files', async () => {
+  it('refuse un chemin qui sort du projet même déclaré dans expected.files', () => {
     const escaping = step({
       expected: { files: ['../ailleurs.js'] },
       solution: { '../ailleurs.js': 'nope' },
     })
-    const result = await applySolution(session([escaping]))
-    expect(result.ok).toBe(false)
-    await expect(fs.readFile(path.join(root, '../ailleurs.js'), 'utf8')).rejects.toThrow()
+    expect(planSolution(root, escaping).ok).toBe(false)
   })
 
-  it("refuse une étape sans solution plutôt que d'écrire zéro fichier en silence", async () => {
-    const result = await applySolution(session([step({ solution: {} })]))
-    expect(result.ok).toBe(false)
+  it("refuse une étape sans solution plutôt que de planifier zéro écriture", () => {
+    expect(planSolution(root, step({ solution: {} })).ok).toBe(false)
   })
 })

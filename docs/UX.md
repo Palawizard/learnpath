@@ -1,5 +1,82 @@
 # Comportement de l'interface
 
+## Point d'entrée — la barre d'activité
+
+L'extension a **une icône dans la barre d'activité**, et le panneau vit dedans. C'est le
+seul point d'entrée qui se voit : tant que tout passait par la palette de commandes, il
+fallait connaître le nom d'une commande pour découvrir l'extension, y compris pour son
+premier usage.
+
+Les commandes de la palette restent, toutes les cinq. Elles ne sont simplement plus le
+seul chemin.
+
+### État d'accueil — aucun parcours actif
+
+La vue ne reste jamais vide. Sans parcours dans le dossier, elle montre :
+
+- **ce que fait l'extension, en deux lignes** : tu écris le code, les tests de l'étape
+  tournent à chaque sauvegarde, le parcours avance quand ils passent — et le parcours est
+  un fichier JSON produit en amont, l'extension n'appelle aucun modèle ;
+- un bouton **« Générer le prompt »**, qui ouvre le formulaire décrit juste en dessous.
+  C'est l'étape qui précède l'import, et il n'y avait aucun moyen de la trouver depuis
+  l'éditeur ;
+- un bouton **« Importer un parcours »**, qui ouvre exactement le même dialogue que la
+  commande de la palette.
+
+On y revient : supprimer le parcours ramène la vue à l'accueil, elle ne reste pas sur une
+étape qui n'existe plus.
+
+### Ouverture automatique
+
+Quand `.learn/` contient un parcours, la vue s'ouvre **toute seule à l'activation** —
+et **sans prendre le focus**, comme partout ailleurs dans ce document. L'activation arrive
+pendant que l'utilisateur ouvre son projet et commence à taper : lui prendre le curseur
+serait exactement le geste à ne pas faire.
+
+### Quand un parcours est actif
+
+Le titre de la vue porte les deux actions qu'on veut à portée de main sans quitter le
+panneau :
+
+- **Relancer les tests de l'étape**, en icône, directement visible ;
+- **Réinitialiser le parcours**, dans le menu `…`, moins à portée de clic parce qu'il
+  ouvre un dialogue destructeur.
+
+Sans parcours actif, ces deux actions disparaissent du titre : proposer « Relancer les
+tests » quand il n'y a pas d'étape ne veut rien dire. **Générer le prompt**, lui, reste
+dans le menu `…` dans les deux cas — c'est le seul geste du titre qui ne dépend d'aucune
+étape.
+
+## Composer le prompt de génération
+
+Le prompt à donner à l'agent de code est **composé par l'extension**, à partir du gabarit
+qu'elle embarque (`prompts/generer-parcours.md`). Il n'y a plus rien à recopier depuis une
+documentation : le prompt a existé en deux exemplaires divergents, et un parcours a fini par
+être généré avec une version périmée (D37).
+
+Le geste est **récurrent, pas un geste d'onboarding** : on génère un parcours par
+fonctionnalité. Il reste donc accessible quand un parcours est déjà en cours — bouton sur
+l'accueil, commande dans la palette, et entrée dans le menu `…` du titre de la vue, la
+seule des quatre qui n'est pas conditionnée à `learnpath.active`.
+
+**Un formulaire court**, dans un onglet d'éditeur à part et non dans la vue du parcours :
+la vue est repeinte à chaque run de tests, ce qui effacerait la saisie en cours.
+
+- **la fonctionnalité à implémenter** — zone de texte, seul champ obligatoire ;
+- **le niveau** : débutant ou intermédiaire ;
+- **les fichiers ou dossiers concernés** — facultatif, pour orienter le générateur.
+
+**Puis le prompt complet est affiché, en entier, modifiable, avec un bouton « Copier ».**
+Ce point n'est pas négociable. Un formulaire qui masque ce qu'on envoie retire toute prise
+à l'utilisateur le jour où le résultat le déçoit — précisément le moment où il en a besoin.
+Ce qui est copié est le contenu de la zone, ses retouches comprises, et la copie passe par
+`vscode.env.clipboard` comme le bouton « Copier » de la solution.
+
+Si le dossier ouvert n'a pas de `package.json`, un bandeau le signale — LearnPath ne joue
+que des parcours Vitest — **sans rien bloquer** : le formulaire fonctionne, le prompt se
+compose. Un dossier peut très bien recevoir son `package.json` à l'étape suivante, et ce
+n'est pas à ce formulaire d'en décider.
+
 ## Panneau du parcours
 
 ```
@@ -81,6 +158,32 @@ cette étape n'a été collecté ». L'affichage, lui, n'a pas changé.
 - Jamais de modale bloquante sur un succès.
 - Retour en arrière possible pour relire une étape passée, en lecture seule.
 
+### Relire une étape passée, et refaire une étape
+
+Ce sont **deux choses différentes**, et l'une est destructive : refaire une étape ne doit
+jamais pouvoir être déclenché en croyant relire (D36).
+
+**Relire** — « Relire une étape passée », un lien discret sous les actions de l'étape
+courante, jamais dans la même rangée que « Indice » et « Solution » : relire ne fait rien,
+ça ne se clique pas par réflexe. L'écran de relecture s'annonce **avant l'énoncé** (« Lecture
+seule — étape 1.2, déjà validée »), ne propose ni indice ni solution, et n'affiche pas la
+zone d'état du dernier run — elle décrit l'étape courante, la lire à côté d'une étape passée
+la ferait prendre pour le résultat de celle-là. La barre de progression, elle, continue de
+montrer où en est le parcours, pas où en est la lecture. On navigue entre les étapes déjà
+validées, et on revient à l'étape en cours.
+
+**Refaire** — dans son propre encadré, en bas de l'écran de relecture, à l'écart de la
+navigation. Il nomme les fichiers concernés avant même le clic, son libellé se termine par
+des points de suspension (« Refaire l'étape 1.2… ») parce qu'un clic ouvre une boîte et ne
+restaure rien, et son style est celui d'une action destructive, pas d'un bouton ordinaire.
+La confirmation modale liste chaque fichier réécrit, chaque fichier supprimé, les
+modifications non sauvegardées qui vont être sauvegardées puis remplacées, et dit où est le
+point de restauration.
+
+Quand la fonctionnalité est indisponible — pas de dépôt git, arbre sale à l'import, option
+coupée — l'encadré affiche la raison **à la place du bouton**. Il n'y a rien à cliquer qui
+échouerait.
+
 ### Régression sur une étape précédente
 
 L'étape courante passe, mais une étape déjà validée ne passe plus : la progression est
@@ -103,8 +206,16 @@ montrer à l'utilisateur en fin de parcours.
 ## Solution
 
 - Demande une confirmation, sans culpabiliser. Un texte neutre, pas « es-tu sûr de vouloir
-  abandonner ».
-- Écrit le fichier, marque l'étape comme révélée, laisse les tests passer normalement.
+  abandonner ». Elle dit ce qui va s'afficher et que rien ne sera écrit.
+- **La solution s'affiche dans le panneau, elle n'est jamais écrite dans les fichiers de
+  l'utilisateur** (D34). Un bloc par fichier quand l'étape en touche plusieurs : chemin en
+  en-tête, code coloré en dessous, un bouton « Copier » par fichier.
+- C'est l'utilisateur qui recopie. Recopier fait passer le code par les yeux et les doigts ;
+  un fichier rempli tout seul ne le fait pas. Et surtout : écrire le fichier faisait perdre
+  du travail en silence — VSCode ne recharge pas un buffer modifié, l'utilisateur ne voyait
+  pas la solution et sa sauvegarde suivante écrasait ce qu'on venait d'écrire.
+- Marque l'étape comme révélée, et laisse les tests passer normalement quand l'utilisateur
+  sauvegarde son propre fichier.
 - Une étape dont la solution a été révélée reste marquée comme telle dans le récapitulatif
   de fin. Pas de pénalité, juste une information honnête.
 

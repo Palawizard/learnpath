@@ -113,6 +113,20 @@ button.secondary {
 button.secondary:hover:enabled { background: var(--vscode-button-secondaryHoverBackground); }
 button:disabled { opacity: 0.5; cursor: default; }
 button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.solution-file { margin-top: 0.6rem; }
+.solution-file:first-of-type { margin-top: 0.4rem; }
+.solution-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.solution-head button { padding: 0.15rem 0.6rem; font-size: 0.9em; }
+.solution .code { max-height: 22rem; overflow: auto; white-space: pre; }
+.tok-comment { color: var(--vscode-descriptionForeground); font-style: italic; }
+.tok-string { color: var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-orange)); }
+.tok-number { color: var(--vscode-symbolIcon-numberForeground, var(--vscode-charts-green)); }
+.tok-keyword { color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-charts-purple)); }
 #status { margin-top: 1rem; }
 .running {
   color: var(--vscode-descriptionForeground);
@@ -151,6 +165,32 @@ button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-off
   border-left-color: var(--vscode-charts-green, var(--vscode-testing-iconPassed));
   background: var(--vscode-textCodeBlock-background);
 }
+/* Refaire une étape est le seul geste destructif du panneau : le bouton se distingue des
+   actions ordinaires, et son encadré est séparé de la navigation de relecture. */
+button.danger {
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+  background: var(--vscode-inputValidation-errorBackground, var(--vscode-textCodeBlock-background));
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-editorError-foreground));
+}
+button.danger:hover:enabled { background: var(--vscode-inputValidation-errorBackground); }
+button.link {
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  font-size: inherit;
+}
+button.link:hover:enabled { color: var(--vscode-textLink-activeForeground); background: none; }
+.review-entry { margin-top: 1rem; }
+.card.redo { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-panel-border)); }
+.card.redo .actions { margin-bottom: 0; }
+.banner.review {
+  border-left-color: var(--vscode-panel-border);
+  background: var(--vscode-textCodeBlock-background);
+  margin-bottom: 1rem;
+}
+.banner.review .muted { margin: 0.2rem 0 0; }
 .banner.regression {
   border-left-color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
   background: var(--vscode-textCodeBlock-background);
@@ -203,8 +243,26 @@ window.addEventListener('message', (event) => {
 document.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button || button.disabled) return;
-  const action = button.dataset.action === 'hint' ? 'revealHint' : 'revealSolution';
-  vscode.postMessage({ type: action, stepId: stepId });
+  const action = button.dataset.action;
+  if (action === 'import' || action === 'generatePrompt') {
+    vscode.postMessage({ type: action });
+    return;
+  }
+  if (action === 'copy') {
+    vscode.postMessage({ type: 'copySolution', stepId: stepId, file: button.dataset.file });
+    return;
+  }
+  // Relire et refaire portent l'étape visée dans le bouton : c'est une étape passée, pas
+  // celle du rendu courant. L'extension revalide l'id de son côté.
+  if (action === 'review' || action === 'redo') {
+    vscode.postMessage({ type: action, stepId: button.dataset.step });
+    return;
+  }
+  if (action === 'reviewExit') {
+    vscode.postMessage({ type: 'reviewExit' });
+    return;
+  }
+  vscode.postMessage({ type: action === 'hint' ? 'revealHint' : 'revealSolution', stepId: stepId });
 });
 
 vscode.postMessage({ type: 'ready' });

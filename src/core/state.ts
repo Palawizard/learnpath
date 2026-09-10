@@ -102,6 +102,17 @@ export function complete(state: ParcoursState, now = new Date()): ParcoursState 
   return { ...state, completedAt: stamp, updatedAt: stamp }
 }
 
+/**
+ * Retour à une étape déjà validée pour la refaire (D36). `completedAt` saute : le parcours
+ * n'est plus terminé, il reprend à cette étape. Les indices et les solutions déjà révélés
+ * restent enregistrés — le récapitulatif de fin dit ce qui s'est passé, il ne se réécrit
+ * pas parce qu'on repasse par là.
+ */
+export function rewindTo(state: ParcoursState, stepId: string, now = new Date()): ParcoursState {
+  const { completedAt: _completedAt, ...rest } = state
+  return { ...rest, currentStepId: stepId, updatedAt: now.toISOString() }
+}
+
 export function revealHint(state: ParcoursState, stepId: string, now = new Date()): ParcoursState {
   const count = state.hintsRevealed[stepId] ?? 0
   return {

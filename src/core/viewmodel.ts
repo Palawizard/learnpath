@@ -39,6 +39,33 @@ export interface RegressionView {
   readonly explained?: string
 }
 
+/** Un fichier de la solution, tel qu'il s'affiche dans le panneau (D34). */
+export interface SolutionFileView {
+  readonly file: string
+  readonly content: string
+}
+
+/** Ce que « refaire cette étape » ferait, ou pourquoi c'est indisponible (D36). */
+export interface RedoView {
+  readonly stepId: string
+  /** Les fichiers qui seraient remplacés. Aucun autre ne peut l'être. */
+  readonly files: readonly string[]
+  readonly available: boolean
+  /** Toujours présent quand `available` est faux : la phrase à afficher telle quelle. */
+  readonly reason?: string
+}
+
+/**
+ * Relecture d'une étape passée. C'est un mode **en lecture seule** : ni indice, ni
+ * solution, ni run — rien n'est touché tant que l'utilisateur ne demande pas explicitement
+ * de refaire l'étape, ce qui est le seul geste destructif et passe par une confirmation.
+ */
+export interface ReviewView {
+  readonly previousStepId?: string
+  readonly nextStepId?: string
+  readonly redo: RedoView
+}
+
 export interface RecapStepView {
   readonly id: string
   readonly title: string
@@ -64,6 +91,11 @@ export interface ViewModel {
   readonly hints: readonly string[]
   readonly hintsRemaining: number
   readonly solutionRevealed: boolean
+  /**
+   * Contenu de la solution, un bloc par fichier. Vide tant qu'elle n'est pas révélée : on
+   * ne pousse pas au panneau ce que l'utilisateur n'a pas demandé à voir.
+   */
+  readonly solution: readonly SolutionFileView[]
   readonly status: StatusView
   /**
    * Un run est en cours (le debounce est passé). Ce qui est affiché dans la zone d'état
@@ -74,6 +106,25 @@ export interface ViewModel {
   readonly finished: boolean
   /** Vide tant que le parcours n'est pas terminé. */
   readonly recap: readonly RecapStepView[]
+  /**
+   * Étape courante du parcours (1-based), même en relecture : la barre de progression
+   * montre toujours où on en est vraiment, pas où on est en train de lire.
+   */
+  readonly currentPosition: number
+  /**
+   * Étape par laquelle s'ouvre la relecture : la dernière validée. Absent quand il n'y a
+   * rien à relire, ou qu'on est déjà en relecture.
+   */
+  readonly reviewEntry?: string
+  /** Présent uniquement en relecture. `readOnly` en découle. */
+  readonly review?: ReviewView
+  readonly readOnly: boolean
+}
+
+/** Ce que l'appelant sait de la relecture en cours. Voir `src/watcher.ts`. */
+export interface ReviewInput {
+  readonly stepId: string
+  readonly redo: RedoView
 }
 
 /**
@@ -88,15 +139,23 @@ export function buildViewModel(
   parcours: Parcours,
   state: ParcoursState,
   outcome?: Outcome,
-  running = false
+  running = false,
+  review?: ReviewInput
 ): ViewModel | undefined {
-  const index = parcours.steps.findIndex((s) => s.id === state.currentStepId)
-  const step = parcours.steps[index]
-  if (step === undefined) return undefined
+  const current = parcours.steps.findIndex((s) => s.id === state.currentStepId)
+  if (parcours.steps[current] === undefined) return undefined
 
   const total = parcours.steps.length
   const finished = state.completedAt !== undefined
-  const done = finished ? total : index
+  const done = finished ? total : current
+  // En relecture, l'étape affichée n'est pas celle du state : seule elle change, la
+  // progression réelle reste celle du parcours. Une étape non validée ne se relit pas —
+  // on retombe alors sur l'étape courante plutôt que d'inventer un mode de plus.
+  const asked = review === undefined ? -1 : parcours.steps.findIndex((s) => s.id === review.stepId)
+  const reviewing = asked >= 0 && asked < done
+  const index = reviewing ? asked : current
+  const step = parcours.steps[index]
+  if (step === undefined) return undefined
 
   return {
     parcoursTitle: parcours.title,
@@ -110,18 +169,44 @@ export function buildViewModel(
     ...(step.expected.contract === undefined ? {} : { contract: step.expected.contract }),
     acceptance: step.expected.acceptance ?? [],
     hints: revealedHints(step, state),
-    hintsRemaining: (step.hints?.length ?? 0) - (state.hintsRevealed[step.id] ?? 0),
+    hintsRemaining: reviewing ? 0 : (step.hints?.length ?? 0) - (state.hintsRevealed[step.id] ?? 0),
     solutionRevealed: state.solutionsRevealed.includes(step.id),
-    status: statusOf(outcome),
-    running,
-    regressions: (outcome?.regressions ?? []).map(regressionView),
-    finished,
-    recap: finished ? parcours.steps.map((s) => recapView(s, state)) : [],
+    solution: state.solutionsRevealed.includes(step.id) ? solutionFiles(step) : [],
+    // La zone d'état décrit le dernier run, donc l'étape courante : l'afficher à côté
+    // d'une étape passée la ferait lire comme le résultat de celle-là.
+    status: reviewing ? { kind: 'none', summary: '', advanced: false } : statusOf(outcome),
+    running: reviewing ? false : running,
+    regressions: reviewing ? [] : (outcome?.regressions ?? []).map(regressionView),
+    finished: finished && !reviewing,
+    recap: finished && !reviewing ? parcours.steps.map((s) => recapView(s, state)) : [],
+    currentPosition: finished ? total : current + 1,
+    ...(reviewing || done === 0 ? {} : { reviewEntry: parcours.steps[done - 1]?.id ?? '' }),
+    ...(reviewing && review !== undefined ? { review: reviewView(parcours, index, done, review.redo) } : {}),
+    readOnly: reviewing,
+  }
+}
+
+/**
+ * Bornes de la navigation : on ne se déplace que dans les étapes **validées**. Au-delà,
+ * il n'y a rien à relire, il y a le parcours en cours — d'où le retour à l'étape courante
+ * plutôt qu'une étape « suivante » qui n'est pas encore jouée.
+ */
+function reviewView(parcours: Parcours, index: number, done: number, redo: RedoView): ReviewView {
+  const previous = parcours.steps[index - 1]
+  const next = index + 1 < done ? parcours.steps[index + 1] : undefined
+  return {
+    ...(previous === undefined ? {} : { previousStepId: previous.id }),
+    ...(next === undefined ? {} : { nextStepId: next.id }),
+    redo,
   }
 }
 
 function revealedHints(step: Step, state: ParcoursState): readonly string[] {
   return (step.hints ?? []).slice(0, state.hintsRevealed[step.id] ?? 0)
+}
+
+function solutionFiles(step: Step): readonly SolutionFileView[] {
+  return Object.entries(step.solution).map(([file, content]) => ({ file, content }))
 }
 
 function recapView(step: Step, state: ParcoursState): RecapStepView {

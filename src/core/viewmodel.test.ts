@@ -109,8 +109,31 @@ describe('buildViewModel — indices', () => {
     expect(model?.hints).toEqual([])
   })
 
-  it('marque la solution révélée', () => {
-    expect(buildViewModel(parcours, state({ solutionsRevealed: ['1.2'] }))?.solutionRevealed).toBe(true)
+  it('marque la solution révélée et en porte le contenu, fichier par fichier', () => {
+    const model = buildViewModel(parcours, state({ solutionsRevealed: ['1.2'] }))
+    expect(model?.solutionRevealed).toBe(true)
+    expect(model?.solution).toEqual([{ file: 'src/panier.js', content: '// solution' }])
+  })
+
+  it('ne pousse pas la solution tant qu\'elle n\'est pas révélée', () => {
+    expect(buildViewModel(parcours, state())?.solution).toEqual([])
+  })
+
+  it('porte un bloc par fichier quand une étape en touche plusieurs', () => {
+    const multi: Parcours = {
+      ...parcours,
+      steps: [
+        step('1.2', {
+          expected: { files: ['src/panier.js', 'src/total.js'] },
+          solution: { 'src/panier.js': '// panier', 'src/total.js': '// total' },
+        }),
+      ],
+    }
+    const model = buildViewModel(multi, state({ solutionsRevealed: ['1.2'] }))
+    expect(model?.solution).toEqual([
+      { file: 'src/panier.js', content: '// panier' },
+      { file: 'src/total.js', content: '// total' },
+    ])
   })
 })
 
@@ -220,5 +243,74 @@ describe('buildViewModel — régression', () => {
         explained: 'Obtenu : 3\nAttendu : 2',
       },
     ])
+  })
+})
+
+describe('relecture d\'une étape passée', () => {
+  const redo = { stepId: '1.1', files: ['src/panier.js'], available: true }
+
+  it('affiche l\'étape relue, en lecture seule, sans la zone d\'état du dernier run', () => {
+    const model = buildViewModel(parcours, state({ currentStepId: '1.3' }), outcome(), true, {
+      stepId: '1.1',
+      redo,
+    })
+
+    expect(model?.stepId).toBe('1.1')
+    expect(model?.readOnly).toBe(true)
+    expect(model?.position).toBe(1)
+    // La barre de progression continue de montrer où en est le parcours.
+    expect(model?.currentPosition).toBe(3)
+    expect(model?.status.kind).toBe('none')
+    expect(model?.running).toBe(false)
+    expect(model?.regressions).toEqual([])
+    // Aucun indice à révéler depuis une étape passée.
+    expect(model?.hintsRemaining).toBe(0)
+    expect(model?.review?.redo).toEqual(redo)
+  })
+
+  it('ne navigue qu\'entre les étapes validées', () => {
+    const at = (id: string) =>
+      buildViewModel(parcours, state({ currentStepId: '1.3' }), undefined, false, { stepId: id, redo })
+
+    expect(at('1.1')?.review?.previousStepId).toBeUndefined()
+    expect(at('1.1')?.review?.nextStepId).toBe('1.2')
+    // 1.3 est l'étape courante, pas une étape validée : elle n'est pas « suivante ».
+    expect(at('1.2')?.review?.previousStepId).toBe('1.1')
+    expect(at('1.2')?.review?.nextStepId).toBeUndefined()
+  })
+
+  it('refuse de relire une étape non validée : on retombe sur l\'étape courante', () => {
+    const model = buildViewModel(parcours, state({ currentStepId: '1.2' }), undefined, false, {
+      stepId: '1.3',
+      redo,
+    })
+
+    expect(model?.stepId).toBe('1.2')
+    expect(model?.readOnly).toBe(false)
+    expect(model?.review).toBeUndefined()
+  })
+
+  it('propose l\'entrée en relecture dès la première étape validée, jamais avant', () => {
+    expect(buildViewModel(parcours, state({ currentStepId: '1.1' }))?.reviewEntry).toBeUndefined()
+    expect(buildViewModel(parcours, state({ currentStepId: '1.3' }))?.reviewEntry).toBe('1.2')
+    // Parcours terminé : toutes les étapes sont relisables.
+    expect(
+      buildViewModel(parcours, state({ currentStepId: '1.4', completedAt: '2026-01-02T00:00:00.000Z' }))
+        ?.reviewEntry
+    ).toBe('1.4')
+  })
+
+  it('un parcours terminé relu montre l\'étape, pas le récapitulatif', () => {
+    const model = buildViewModel(
+      parcours,
+      state({ currentStepId: '1.4', completedAt: '2026-01-02T00:00:00.000Z' }),
+      undefined,
+      false,
+      { stepId: '1.4', redo }
+    )
+
+    expect(model?.finished).toBe(false)
+    expect(model?.recap).toEqual([])
+    expect(model?.readOnly).toBe(true)
   })
 })

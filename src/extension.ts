@@ -4,6 +4,7 @@ import { loadParcours } from './core/parcours'
 import { importParcours } from './core/importer'
 import { removeParcours, restartParcours } from './core/reset'
 import { ParcoursPanel } from './webview/panel'
+import { PromptPanel } from './webview/prompt-panel'
 import { Watcher } from './watcher'
 
 let output: vscode.OutputChannel | undefined
@@ -14,9 +15,14 @@ export function activate(context: vscode.ExtensionContext): void {
   mergeTerminalPath()
   context.subscriptions.push(
     output,
+    ParcoursPanel.register(),
     { dispose: () => stopWatching() },
     vscode.commands.registerCommand('learnpath.open', () => void openCommand()),
     vscode.commands.registerCommand('learnpath.import', () => void importCommand()),
+    vscode.commands.registerCommand(
+      'learnpath.generatePrompt',
+      () => void PromptPanel.show(context.extensionUri)
+    ),
     vscode.commands.registerCommand('learnpath.runStep', () => void runStepCommand()),
     vscode.commands.registerCommand('learnpath.reset', () => void resetCommand()),
   )
@@ -54,8 +60,21 @@ export function deactivate(): void {
 async function startWatching(): Promise<void> {
   stopWatching()
   const root = vscode.workspace.workspaceFolders?.[0]
-  if (root === undefined) return
-  watcher = await Watcher.open(root.uri.fsPath, (line) => log().appendLine(line))
+  if (root !== undefined) {
+    watcher = await Watcher.open(root.uri.fsPath, (line) => log().appendLine(line))
+  }
+  setActive(watcher !== undefined)
+}
+
+/**
+ * Un parcours est en cours, ou pas. Le contexte commande les deux actions du titre de la
+ * vue (Relancer, Réinitialiser) ; sans parcours, la vue montre son état d'accueil plutôt
+ * que de rester vide — c'est le seul endroit d'où on peut importer sans connaître la
+ * palette.
+ */
+function setActive(active: boolean): void {
+  void vscode.commands.executeCommand('setContext', 'learnpath.active', active)
+  if (!active) ParcoursPanel.current?.showWelcome()
 }
 
 function stopWatching(): void {
@@ -78,13 +97,11 @@ async function runStepCommand(): Promise<void> {
   await watcher.runNow()
 }
 
-/** Le panneau n'existe qu'attaché à une session : sans parcours, il n'a rien à montrer. */
+/** Sans parcours, la vue s'ouvre quand même : elle montre l'accueil, d'où on importe. */
 async function openCommand(): Promise<void> {
   if (watcher === undefined) await startWatching()
   if (watcher === undefined) {
-    void vscode.window.showErrorMessage(
-      'LearnPath — aucun parcours en cours dans ce dossier. Importe un parcours pour commencer.'
-    )
+    ParcoursPanel.show()
     return
   }
   watcher.show()
@@ -136,7 +153,7 @@ async function resetCommand(): Promise<void> {
     return
   }
   stopWatching()
-  ParcoursPanel.current?.dispose()
+  setActive(false)
   void vscode.window.showInformationMessage(
     'LearnPath — le dossier .learn/ a été supprimé. Ton code n’a pas été touché.'
   )
@@ -185,6 +202,8 @@ async function importCommand(): Promise<void> {
   const result = await importParcours(parcours.value, workspace.uri.fsPath, {
     confirm: (commands) => confirmSetup(commands),
     log: (line) => channel.append(line.endsWith('\n') ? line : `${line}\n`),
+    // D36 : le point de départ git n'est posé que si l'utilisateur laisse l'option active.
+    gitCheckpoints: vscode.workspace.getConfiguration('learnpath').get<boolean>('gitCheckpoints', true),
   })
 
   if (!result.ok) {

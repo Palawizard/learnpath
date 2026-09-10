@@ -11,8 +11,17 @@ export interface HostMessage {
 /** Webview → extension. Frontière de confiance : tout passe par `parseWebviewMessage`. */
 export type WebviewMessage =
   | { readonly type: 'ready' }
+  | { readonly type: 'import' }
+  | { readonly type: 'generatePrompt' }
   | { readonly type: 'revealHint'; readonly stepId: string }
   | { readonly type: 'revealSolution'; readonly stepId: string }
+  | { readonly type: 'copySolution'; readonly stepId: string; readonly file: string }
+  /** Relire une étape passée, en lecture seule : n'écrit rien, jamais. */
+  | { readonly type: 'review'; readonly stepId: string }
+  /** Quitter la relecture et revenir à l'étape en cours. */
+  | { readonly type: 'reviewExit' }
+  /** Refaire une étape passée : le seul message qui mène à une écriture hors de `.learn/`. */
+  | { readonly type: 'redo'; readonly stepId: string }
 
 /**
  * Le contenu vient de notre propre script, mais le canal, lui, est une frontière : on
@@ -27,10 +36,29 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | undefined {
   switch (message['type']) {
     case 'ready':
       return { type: 'ready' }
+    case 'import':
+      return { type: 'import' }
+    case 'generatePrompt':
+      return { type: 'generatePrompt' }
     case 'revealHint':
       return typeof stepId === 'string' ? { type: 'revealHint', stepId } : undefined
+    case 'review':
+      return typeof stepId === 'string' ? { type: 'review', stepId } : undefined
+    case 'reviewExit':
+      return { type: 'reviewExit' }
+    // `stepId` est comparé aux étapes validées du parcours par l'appelant, et les chemins
+    // restaurés viennent de `expected.files` de cette étape — jamais de la webview.
+    case 'redo':
+      return typeof stepId === 'string' ? { type: 'redo', stepId } : undefined
     case 'revealSolution':
       return typeof stepId === 'string' ? { type: 'revealSolution', stepId } : undefined
+    case 'copySolution': {
+      // `file` sert de clé dans `step.solution`, jamais à construire un chemin.
+      const file = message['file']
+      return typeof stepId === 'string' && typeof file === 'string'
+        ? { type: 'copySolution', stepId, file }
+        : undefined
+    }
     default:
       return undefined
   }

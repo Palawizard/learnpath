@@ -7,6 +7,7 @@ import { type ParcoursState, advanceTo, complete, readState, writeState } from '
 import { type Classification, classify } from '../runner/classify.js'
 import type { RawResult } from '../runner/parse.js'
 import { run } from '../runner/vitest.js'
+import { recordCheckpoint } from './redo.js'
 
 /**
  * Tout ce qu'il faut pour jouer un parcours, résolu une seule fois. `src/watcher.ts` en
@@ -37,6 +38,8 @@ export interface Outcome {
   readonly state: ParcoursState
   readonly advanced: boolean
   readonly finished: boolean
+  /** Le point de restauration git de l'étape validée n'a pas pu être posé (D36). */
+  readonly checkpointError?: string
   /** Phrase de la zone d'état. Vide quand il n'y a rien à dire (voir docs/UX.md). */
   readonly summary: string
 }
@@ -51,6 +54,8 @@ export interface StepRunOptions {
   readonly signal?: AbortSignal
   /** `learnpath.autoAdvance`. À `false`, l'étape est validée mais le state ne bouge pas. */
   readonly autoAdvance?: boolean
+  /** `learnpath.gitCheckpoints`. À `false`, aucun commit n'est créé (D36). */
+  readonly gitCheckpoints?: boolean
   readonly execute?: Execute
 }
 
@@ -184,11 +189,24 @@ export async function runCurrentStep(
   // erreur au mauvais endroit.
   const moves = result.state === 'pass' && regressions.length === 0 && autoAdvance
 
+  // L'étape est validée dès que son run passe sans régression : le point de restauration
+  // suit ce fait-là, pas l'avancée du state, qui dépend en plus de `autoAdvance`.
+  let checkpointError: string | undefined
+  if (result.state === 'pass' && regressions.length === 0) {
+    const recorded = await recordCheckpoint(session, step, options.gitCheckpoints ?? true)
+    if (!recorded.ok) checkpointError = recorded.error
+  }
+
   let state = session.state
   if (moves) state = next === undefined ? complete(state) : advanceTo(state, next.id)
-  if (state !== session.state) await writeState(session.stateFile, state)
+  // Un run annulé n'enregistre rien : son remplaçant est déjà programmé, et la reprise
+  // d'étape peut avoir réécrit le state pendant qu'il tournait (D36).
+  if (state !== session.state && options.signal?.aborted !== true) {
+    await writeState(session.stateFile, state)
+  }
 
   return ok({
+    ...(checkpointError === undefined ? {} : { checkpointError }),
     step,
     result,
     regressions,

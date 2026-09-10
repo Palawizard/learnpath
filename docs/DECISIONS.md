@@ -981,3 +981,274 @@ au mauvais endroit, ce qui vient de coûter trois essais. Les messages de `verif
 mettent plus la solution en cause quand rien ne prouve qu'elle l'est. D30 reste valide dans
 son intention — séparer les diagnostics — mais sa mise en œuvre affirmait plus que ce que les
 données permettent ; c'est ce que D33 corrige.
+
+## D34 — La solution s'affiche dans le panneau, elle ne s'écrit plus sur disque
+
+**Bug remonté en usage réel, avec perte de données silencieuse.** Le bouton « Solution »
+écrivait le fichier de l'étape. Or l'utilisateur a presque toujours une tentative en cours
+dans l'éditeur : VSCode ne recharge pas un buffer modifié. Il ne voyait donc pas la
+solution, et sa sauvegarde suivante écrasait ce qu'on venait d'écrire. On lui faisait perdre
+du contenu sans le prévenir — et la confirmation, en annonçant l'écriture, ne prévenait pas
+de *ça*.
+
+**Décision : la solution est affichée, l'utilisateur la recopie.** Un bloc par fichier quand
+l'étape en touche plusieurs — chemin en en-tête, code coloré, un bouton « Copier » par
+fichier. Recopier fait passer le code par les yeux et les doigts ; un fichier rempli tout
+seul ne le fait pas. Le bug de perte de données est le motif, mais l'effet pédagogique est
+le bon côté du compromis, pas une consolation.
+
+**Ce qui disparaît avec l'écriture** : le risque d'écraser un fichier, la confirmation qui
+annonçait cette écriture, et le `ResolvedPath` sur ce chemin. Le clic ne calcule plus aucun
+chemin dans le projet de l'utilisateur — la clé du fichier ne sert qu'à lire
+`step.solution`, jamais à construire un chemin. `applySolution` est remplacé par
+`revealCurrentSolution`, qui n'écrit plus que `.learn/state.json`. La règle 3 d'`AGENTS.md`
+n'a plus d'exception.
+
+**`planSolution` reste**, et reste testé : `verifyAllGreen` l'utilise pour appliquer les
+solutions dans sa copie temporaire du workspace (D21). C'est désormais le seul chemin qui
+écrit une solution sur disque, et il ne vise jamais le projet réel.
+
+L'étape reste marquée révélée dans le state, et le récapitulatif de fin est inchangé : pas
+de pénalité, juste une information honnête.
+
+**Coloration syntaxique sans dépendance.** Aucune nouvelle dépendance runtime (règle 6) :
+un tokenizer d'une seule expression régulière dans `render.ts`, quatre catégories
+(commentaire, chaîne, nombre, mot-clé), et les couleurs prises dans les variables du thème
+(`--vscode-symbolIcon-*`), donc correct en thème clair, sombre et contrasté. Il couvre la
+famille JS/TS, celle des parcours ; ailleurs le code sort échappé sans couleur, ce qui reste
+lisible. Le compromis est marqué par un commentaire `ponytail:` à côté du tokenizer.
+
+**La copie passe par l'extension**, pas par `navigator.clipboard` : `vscode.env.clipboard`
+marche partout, y compris là où la webview n'a pas la permission, et ça évite d'accorder
+quoi que ce soit de plus à la webview.
+
+**Non-régression.** `reveal.test.ts` vérifie qu'après un clic sur « Solution », le fichier
+de l'utilisateur est intact mot pour mot et que l'arborescence du projet ne contient rien
+d'autre que `.learn/state.json` et ce qui existait déjà.
+
+---
+
+## D35 — Le panneau vit dans la barre d'activité, avec un état d'accueil
+
+**Problème.** Friction remontée en usage réel : tout passait par la palette de commandes.
+L'extension n'avait d'icône nulle part. Pour la découvrir, l'ouvrir, relancer les tests ou
+réinitialiser, il fallait déjà connaître le nom d'une commande — y compris au tout premier
+usage, celui où on ne sait justement rien.
+
+**Décision : une vue de la barre d'activité (`WebviewViewProvider`) à la place de l'onglet
+d'éditeur (`WebviewPanel`).** Un conteneur `learnpath` dans `viewsContainers.activitybar`,
+une vue `learnpath.parcours` de type `webview`. L'icône est un SVG monochrome
+(`media/activity-bar.svg`) teinté par le thème, comme toutes les icônes de cette barre.
+
+Ce que ça change dans le code, et rien de plus :
+
+- `ParcoursPanel` implémente `WebviewViewProvider` et s'enregistre une fois à l'activation.
+  Le fournisseur vit toute la session, la webview va et vient : le dernier message rendu est
+  gardé et repoussé sur `ready`, ce qui remplace exactement ce que faisait
+  `retainContextWhenHidden` sur l'ancien panneau (l'option existe aussi ici, elle est
+  gardée).
+- **Non-vol du focus, inchangé.** `ParcoursPanel.show()` appelle `learnpath.parcours.focus`
+  avec `{ preserveFocus: true }` — c'est la forme équivalente à l'ancien `preserveFocus` de
+  `createWebviewPanel` / `reveal`. L'ouverture automatique à l'activation passe par là.
+- **Un état d'accueil**, rendu par `renderWelcome()` dans `render.ts`, donc testé hors
+  `vscode` comme le reste. Deux lignes sur ce que fait l'extension, un bouton « Importer un
+  parcours » et un lien vers le prompt de génération du README. Le bouton envoie un message
+  `import` : le panneau le traite lui-même en appelant la commande, parce qu'à ce
+  moment-là il n'y a aucune session à qui l'adresser.
+- **Relancer et Réinitialiser dans le titre de la vue**, via `menus.view/title` — pas de
+  boutons en HTML : les actions de titre sont natives, gratuites, et déjà accessibles au
+  clavier. Elles sont conditionnées par un contexte `learnpath.active`, posé dans
+  `setActive()` au même endroit que l'ouverture de session.
+- Supprimer le parcours ne ferme plus rien (une vue ne se ferme pas) : elle repasse à
+  l'accueil. `ParcoursPanel.dispose()` disparaît, il n'avait plus de sens.
+
+**Ce qu'on ne fait pas.** Pas de `viewsWelcome` : il ne s'applique qu'aux vues arborescentes,
+pas aux vues webview. L'accueil est donc du HTML, ce qui n'ajoute rien — la coquille, la CSP
+et le script sont déjà là et ne bougent pas.
+
+**Les commandes de la palette restent, toutes les quatre.** `learnpath.open` ne renvoie plus
+d'erreur quand il n'y a pas de parcours : elle révèle la vue, qui montre l'accueil, d'où on
+importe. C'est le seul endroit où un message d'erreur disparaît, et il était devenu faux.
+
+
+---
+
+## D36 — Refaire une étape : git plutôt qu'un versionnement maison, et une écriture bornée
+
+**Le besoin.** Refaire une étape déjà validée, avec le code tel qu'il était **avant** elle.
+Sans ça, se tromper de chemin sur une étape est définitif : le seul recours était de
+réinitialiser le parcours entier.
+
+**Décision : on s'appuie sur git, on ne réimplémente pas un versionnement dans `.learn/`.**
+Un dossier de sauvegardes maison aurait été une deuxième source de vérité à garder cohérente
+avec le disque, sans reflog, sans `diff`, sans outillage. Le projet de l'utilisateur en a
+déjà un.
+
+### La forme des commits
+
+Le point sensible n'est pas de commiter, c'est de commiter **sans emporter autre chose**.
+L'utilisateur a presque toujours du travail en cours ailleurs — c'est le principe même de
+l'extension, elle joue dans son vrai projet. Donc :
+
+- **jamais `git add -A`**, jamais un commit qui ramasse l'index tel qu'il est ;
+- un commit par étape validée, contenant **uniquement les `expected.files` de l'étape** ;
+- il est fabriqué dans un `GIT_INDEX_FILE` temporaire (`read-tree` → `add -f` → `write-tree`
+  → `commit-tree`), donc **`HEAD`, la branche, l'index et l'arbre de travail ne bougent
+  pas**. `git status` et `git log` sont identiques avant et après ;
+- il est rattaché au commit de l'étape précédente, et posé sur `refs/learnpath/<slug>/<id>`
+  avec `--create-reflog`. Une référence par étape : ça n'entre ni dans `refs/heads`, ni dans
+  `refs/tags`, donc ni dans `git log`, ni dans la liste des tags. La chaîne part de
+  `refs/learnpath/<slug>/base`, qui est le `HEAD` du moment de l'import.
+
+**L'historique n'est jamais réécrit.** Pas de `reset`, pas de `rebase`, pas de
+`commit --amend`, aucun commit annulé. Refaire l'étape N, c'est
+`git restore --source=<référence d'avant N> --worktree -- <expected.files de N>` — `restore`
+et non `checkout`, parce que `checkout <tree-ish> -- <chemin>` écrit aussi dans l'index de
+l'utilisateur, et on n'y touche pas.
+
+### L'arbitrage assumé : une écriture hors de `.learn/`
+
+D34 venait de supprimer la dernière écriture dans le code de l'utilisateur. Celle-ci la
+réintroduit, en connaissance de cause. Elle est bornée par trois choses, dans cet ordre :
+
+1. les chemins viennent des `expected.files` de l'étape visée, jamais de la webview — le
+   `stepId` du message est comparé aux étapes validées du parcours, et rien d'autre n'en est
+   tiré ;
+2. chaque chemin repasse par `safeResolve` contre la racine réelle, comme partout ailleurs ;
+3. le plan (`planRedo`) est calculé avant toute écriture, et c'est **lui** qui est affiché
+   dans la confirmation.
+
+La règle 3 d'`AGENTS.md` et la section correspondante du `README` sont mises à jour : « rien
+hors de `.learn/` » devient « rien hors de `.learn/` sans un geste explicite, et jamais hors
+de la liste montrée ». Un test de non-régression compare l'arborescence complète du projet
+avant et après une reprise : seuls le fichier de l'étape et `.learn/state.json` diffèrent.
+
+### Le buffer non sauvegardé — le bug de D34, traité avant l'écriture
+
+VSCode ne recharge pas un éditeur modifié. Écrire un fichier ouvert et sale, c'est
+exactement le bug de D34 : l'utilisateur ne voit pas la restauration, et sa sauvegarde
+suivante l'écrase.
+
+**Décision : on sauvegarde les éditeurs concernés d'abord, et on le dit dans la
+confirmation.** L'ordre exact est : plan → confirmation (qui nomme les fichiers modifiés non
+sauvegardés) → `document.save()` sur ceux-là → instantané de l'état actuel sous
+`refs/learnpath-backup/<slug>/<id>-<horodatage>` → restauration → state.
+
+Refuser tant que l'éditeur est sale aurait été plus simple et plus mauvais : l'utilisateur a
+justement une tentative en cours, c'est la situation normale de qui veut refaire l'étape.
+Sauvegarder **avant** l'instantané est ce qui rend vraie la phrase « git rattrape tout » :
+sans ça, la dernière tentative n'existait nulle part et disparaissait pour de bon.
+
+### La confirmation
+
+Modale, avant toute écriture, et elle dit la vérité fichier par fichier : ceux qui sont
+réécrits, et ceux qui sont **supprimés** — un fichier créé par l'étape n'existait pas avant
+elle, l'annuler c'est le retirer. Elle nomme aussi les modifications non sauvegardées, dit
+que la progression repart à cette étape, et où est le point de restauration. C'est
+destructif du point de vue de l'utilisateur, même si git le rattrape.
+
+### Quand ça ne peut pas marcher, on le dit avant le clic
+
+Les conditions sont vérifiées **au début de l'import**, avant la moindre écriture — le
+`.gitignore` est un fichier suivi et le setup va toucher le lock du gestionnaire de paquets,
+donc c'est le seul instant où l'arbre décrit encore l'état de départ. Sans dépôt git, sans
+commit initial, avec un arbre sale, ou avec des identifiants d'étape que git refuse comme
+nom de référence, **la référence de base n'est pas posée**. Son absence est le seul marqueur
+nécessaire : rien de plus n'est stocké dans `state.json`, et la vue de relecture affiche la
+raison à la place du bouton. Personne ne clique sur quelque chose qui échouera.
+
+### L'option, activée par défaut
+
+`learnpath.gitCheckpoints`. Commiter dans le dépôt de quelqu'un est nouveau et sensible :
+coupée, LearnPath ne crée aucun commit et « Refaire l'étape » est indisponible, avec la
+raison affichée. Elle est relue à chaque geste, pas au chargement.
+
+### Ce qui reste volontairement simple
+
+Refaire l'étape N alors qu'on était rendu à M > N ne restaure **que** les fichiers de N. Les
+étapes N+1…M restent écrites : dès que N repasse au vert, la progression réenchaîne
+jusqu'à M. C'est le comportement littéral de « refaire l'étape N », et ça évite qu'une
+confirmation annonce les fichiers de quatre étapes.
+
+Une étape validée pendant que les points de restauration étaient indisponibles casse la
+chaîne : on ne fabrique pas un commit qui ferait croire à un état d'avant qui n'a jamais
+existé. La reprise de l'étape suivante se dit alors indisponible, avec cette raison-là.
+
+### Un effet de bord corrigé au passage
+
+Un run annulé écrivait quand même le state s'il avait avancé : `runCurrentStep` écrivait
+avant que `runOnce` ne regarde le signal. Sans conséquence visible jusqu'ici (le run suivant
+repartait du même endroit), mais une reprise d'étape pouvait se faire réécrire par un run
+lancé avant elle. `runCurrentStep` n'écrit plus quand le signal est annulé, et le watcher
+annule la boucle dès la confirmation acceptée.
+
+### Navigation : relire et refaire sont deux choses
+
+Voir `UX.md`. Relire est en lecture seule et ne touche à rien ; refaire restaure des
+fichiers. Le bouton « Refaire » n'existe que dans l'écran de relecture, dans son propre
+encadré, à l'écart de la navigation, avec un libellé qui se termine par des points de
+suspension — un clic ouvre une boîte, il ne restaure rien.
+
+### Tests
+
+Dépôt git temporaire réel, jamais de faux `git` : un faux prouverait seulement que le faux
+fait ce qu'on lui a dit. `src/core/redo.test.ts` vérifie le commit par étape et son
+rattachement, le fait que le travail non commité ailleurs n'entre ni dans le commit ni dans
+l'index, la restauration limitée aux bons fichiers, la suppression d'un fichier qui
+n'existait pas, l'instantané de sauvegarde, l'historique inchangé (`HEAD`, `log`, branche,
+reflog), le projet sans git, le dépôt sans commit, l'arbre sale à l'import, et l'option
+coupée.
+
+---
+
+## D37 — Le prompt de génération est composé par l'extension, depuis une source unique
+
+**Le problème, constaté.** Le prompt existait en **deux exemplaires divergents** — un dans
+`SPEC-PARCOURS.md`, un dans le `README` — que l'utilisateur recopiait à la main dans son
+agent. Un parcours a fini par être généré avec une version périmée. Ce n'est pas un
+accident : deux copies d'un texte que personne ne diffe finissent toujours par diverger, et
+la copie manuelle ne donne aucun moyen de savoir laquelle on a prise.
+
+**Décision : une seule copie, `prompts/generer-parcours.md`, et c'est l'extension qui
+compose.** Le fichier est livré dans le paquet (il n'est pas dans `.vscodeignore`) et lu à
+l'exécution depuis `context.extensionUri`. La spec et le README n'en gardent **aucun
+double** : ils y renvoient. Le code de la webview non plus.
+
+Le gabarit porte trois marqueurs, `{{FONCTIONNALITE}}`, `{{NIVEAU}}` et `{{FICHIERS}}`.
+`composePrompt` (`src/core/prompt.ts`, sans `vscode`, testé contre **le fichier livré**) les
+substitue et **refuse un gabarit dont un marqueur reste** : un champ renommé se voit à la
+composition, pas dans le presse-papiers de quelqu'un. La substitution passe par une fonction
+de remplacement et jamais par une chaîne — un `$&` tapé dans le formulaire serait sinon
+interprété par `String.replace`.
+
+### Le prompt est affiché en entier et modifiable
+
+Ce point n'est pas négociable, et il commande la forme de l'écran. Un formulaire qui compose
+le prompt **sans le montrer** retire toute prise à l'utilisateur le jour où le résultat le
+déçoit — précisément le moment où il en a besoin. Le prompt composé s'affiche donc dans une
+zone de texte éditable, et le bouton « Copier » copie **le contenu de la zone**, retouches
+comprises, par `vscode.env.clipboard` comme le bouton « Copier » de la solution.
+
+### Un onglet à part, pas la vue du parcours
+
+La vue du parcours est repeinte à chaque run de tests (`postMessage` → `innerHTML`). Un
+formulaire posé dedans perdrait la saisie en cours à la première sauvegarde de
+l'utilisateur. Le générateur est donc un `WebviewPanel` d'éditeur, indépendant, avec la même
+CSP (`default-src 'none'`, style et script au nonce) — un seul à la fois, un second appel le
+révèle au lieu d'en ouvrir un autre.
+
+Corollaire assumé : c'est un **geste récurrent, pas d'onboarding**. On génère un parcours par
+fonctionnalité, donc la commande reste disponible avec un parcours en cours — c'est la seule
+entrée du titre de la vue qui n'est pas conditionnée à `learnpath.active`.
+
+### Projet non reconnaissable : on le dit, on ne bloque pas
+
+Sans `package.json`, un bandeau signale que LearnPath ne joue que des parcours Vitest, et le
+formulaire fonctionne quand même. Un dossier peut recevoir son `package.json` à l'étape
+suivante ; ce n'est pas à un formulaire de prompt d'en décider, et une porte fermée ici ne
+protège de rien — l'import, lui, valide pour de bon.
+
+**Ce qui n'est pas fait.** Aucun appel de modèle, évidemment (règle 1) : l'extension compose
+du texte et le met dans le presse-papiers, l'agent reste celui de l'utilisateur. Pas
+d'historique des prompts composés, pas de préremplissage depuis le parcours en cours : à
+rouvrir si quelqu'un le demande.

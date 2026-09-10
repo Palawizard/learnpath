@@ -11,7 +11,9 @@ Une ligne = un point à regarder, avec le résultat attendu. Coche, ou note ce q
 1. `npm install`, puis `F5` dans le dépôt : ça ouvre l'Extension Development Host.
 2. Dans la fenêtre qui s'ouvre, ouvre un dossier vide contenant un `package.json`
    (`{ "name": "essai", "private": true, "type": "module" }`).
-3. **LearnPath : Importer un parcours…** et choisis `examples/exemple-panier.json`.
+3. Clique l'**icône LearnPath dans la barre d'activité**, puis **« Importer un parcours »**
+   dans l'état d'accueil, et choisis `examples/exemple-panier.json`. (La commande
+   **LearnPath : Importer un parcours…** de la palette fait la même chose.)
 4. Pour VSCodium : `npx vsce package`, puis dans VSCodium **Extensions → … → Installer à
    partir d'un VSIX**, et reprends au point 2.
 
@@ -64,8 +66,10 @@ y écrire `function (` (code invalide), écrire une implémentation fausse mais 
 | # | À vérifier | Attendu |
 |---|---|---|
 | 19 | Bouton « Indice » | Révèle un indice à la fois, du plus vague au plus précis ; un indice révélé le reste après rechargement du panneau |
-| 20 | Dialogue « Solution » | Texte neutre, sans culpabilisation ; annuler n'écrit rien |
-| 21 | Confirmer « Solution » | Le fichier de l'étape est écrit, les tests passent normalement, l'étape est marquée révélée |
+| 20 | Dialogue « Solution » | Texte neutre, sans culpabilisation ; il ne parle pas d'écriture de fichier ; annuler n'affiche rien |
+| 21 | Confirmer « Solution » | La solution s'affiche **dans le panneau** (un bloc par fichier, chemin en en-tête, code coloré) ; l'étape est marquée révélée |
+| 21b | Confirmer « Solution » avec une tentative non sauvegardée dans l'éditeur | Le buffer ouvert n'est **pas** modifié, aucun fichier du projet n'est touché (D34) |
+| 21c | Bouton « Copier » d'un bloc de solution | Le contenu du fichier est dans le presse-papiers, et lui seul |
 
 ## Écran de fin
 
@@ -120,6 +124,64 @@ VSCodium ».
 | 42 | L'écran de fin | Identique à VS Code |
 | 43 | Console de développement (Aide → Bascule Outils de développement) | Aucune erreur, aucun avertissement de CSP |
 | 44 | Après désinstallation de l'extension | Le projet reste utilisable : `.learn/tests/` tourne toujours avec Vitest |
+
+## Barre d'activité et état d'accueil
+
+| # | À vérifier | Attendu |
+|---|---|---|
+| 45 | L'icône LearnPath dans la barre d'activité | Présente, lisible en thème clair, sombre et contrasté, infobulle « LearnPath » |
+| 46 | Clic sur l'icône dans un projet **sans** `.learn/` | La vue s'ouvre sur l'état d'accueil : ce que fait l'extension en deux lignes, le bouton « Générer le prompt » et le bouton « Importer un parcours » |
+| 47 | Le bouton « Importer un parcours » de l'accueil | Ouvre exactement le même dialogue de fichier que la commande de la palette |
+| 48 | Le bouton « Générer le prompt » de l'accueil | Ouvre l'onglet du formulaire. **Aucune** erreur de CSP dans la console de développement |
+| 49 | Ouvrir un projet qui contient déjà un parcours, en tapant dans l'éditeur | La vue s'ouvre toute seule dans la barre d'activité et le curseur **reste** dans l'éditeur |
+| 50 | Titre de la vue, parcours actif | Deux actions : l'icône « Relancer les tests de l'étape », et « Réinitialiser le parcours » dans le menu `…` |
+| 51 | Les deux mêmes actions, projet sans parcours | **Absentes** du titre de la vue (elles restent dans la palette). « Générer le prompt du parcours… », lui, reste dans le menu `…` dans les deux cas |
+| 52 | « Supprimer le parcours » depuis la vue | La vue revient à l'état d'accueil, elle ne reste pas sur l'étape supprimée |
+| 53 | Les cinq commandes de la palette | Toujours là et toujours fonctionnelles : la palette n'est plus le seul chemin, elle n'a pas disparu |
+| 54 | Masquer puis réafficher la vue (autre icône, puis retour) | Le contenu et le scroll sont retrouvés, l'étape affichée est la bonne |
+
+## Composer le prompt de génération (D37)
+
+| # | À vérifier | Attendu |
+|---|---|---|
+| 74 | « Générer le prompt » depuis l'accueil, et la commande de la palette | Le même onglet « LearnPath — prompt de génération ». Un second clic **révèle l'onglet déjà ouvert**, il n'en crée pas un deuxième |
+| 75 | La commande **avec un parcours en cours** | Disponible dans la palette et dans le menu `…` du titre, et elle ouvre le formulaire. La vue du parcours n'a pas bougé |
+| 76 | Envoyer le formulaire avec la fonctionnalité vide | Le navigateur refuse l'envoi et pointe le champ. Rien n'est composé |
+| 77 | Remplir la fonctionnalité seule, envoyer | Le prompt s'affiche **en entier** en dessous. Il contient « La fonctionnalité que je veux coder : … » et « Mon niveau : intermédiaire », et **aucune** ligne « Fichiers ou dossiers concernés » |
+| 78 | Remplir aussi « Fichiers ou dossiers concernés » | La ligne « Fichiers ou dossiers concernés : … » apparaît, juste avant la fonctionnalité |
+| 79 | Le prompt affiché | **Modifiable** : on peut y taper. Aucun `{{…}}` ne subsiste nulle part dans le texte |
+| 80 | Modifier le texte, puis « Copier » | La barre d'état dit « prompt copié », et un collage ailleurs rend **le texte modifié**, pas le texte d'origine |
+| 81 | Comparer le prompt copié à `prompts/generer-parcours.md` | Identique, aux trois champs près. C'est tout l'objet de D37 |
+| 82 | Le formulaire dans un dossier **sans** `package.json` | Un bandeau le signale, et le formulaire **fonctionne quand même** : on compose et on copie |
+| 83 | Le formulaire en thème clair, sombre et contrasté | Champs, bouton et bandeaux lisibles ; le focus clavier se voit sur chaque champ et chaque bouton |
+| 84 | Passer à un autre onglet puis revenir | La saisie et le prompt composé sont toujours là |
+
+## Relire une étape passée, et refaire une étape (D36)
+
+À dérouler dans un projet **dépôt git, arbre propre au moment de l'import**, après avoir
+validé au moins deux étapes.
+
+| # | À vérifier | Attendu |
+|---|---|---|
+| 55 | Après chaque étape validée : `git status` et `git log` | **Strictement identiques** à avant. Aucun commit sur la branche, rien de nouveau dans l'index |
+| 56 | `git for-each-ref refs/learnpath` | Une référence par étape validée, plus `…/base`. `git tag --list` est inchangé |
+| 57 | Laisser des modifications non commitées dans un fichier **hors** du parcours, puis valider une étape | Le fichier n'est ni commité, ni modifié. `git status` le montre toujours modifié |
+| 58 | Le lien « Relire une étape passée » | Discret, sous les actions de l'étape, séparé d'« Indice » et « Solution » |
+| 59 | L'écran de relecture | Annonce la lecture seule **avant** l'énoncé. Ni « Indice », ni « Solution », ni zone d'état du dernier run |
+| 60 | La barre de progression en relecture | Montre toujours la progression réelle du parcours, pas l'étape relue. Le compteur dit « Relecture — étape n / N » |
+| 61 | La navigation en relecture | On ne va que d'une étape validée à une autre ; « Revenir à l'étape en cours » ramène à l'étape courante, sans rien modifier |
+| 62 | Le bouton « Refaire l'étape n… » | Dans son propre encadré, style d'action destructive, et il **nomme les fichiers** avant le clic |
+| 63 | Clic sur « Refaire l'étape n… » | Une modale s'ouvre. **Rien n'a encore été écrit** — vérifier le fichier sur le disque |
+| 64 | Le texte de la modale | Liste chaque fichier, distingue « remplacé » de « supprimé », annonce le point de restauration et le retour du parcours à cette étape |
+| 65 | Annuler la modale | Aucun fichier touché, la progression n'a pas bougé |
+| 66 | Confirmer, **avec le fichier ouvert et modifié non sauvegardé** | Le contenu d'avant l'étape s'affiche dans l'éditeur (le buffer se recharge). C'est le point qui casse si la sauvegarde préalable saute |
+| 67 | Après la restauration : le reste du projet | Aucun autre fichier modifié. `git status` ne montre que le fichier de l'étape |
+| 68 | Après la restauration : le panneau | Revient à l'étape refaite, sans zone d'état périmée. Sauvegarder relance bien les tests de cette étape |
+| 69 | `git for-each-ref refs/learnpath-backup` | Une référence contenant la tentative remplacée. `git show <ref>:<fichier>` la rend |
+| 70 | Refaire une étape, la revalider, alors qu'on était plus loin | La progression réenchaîne les étapes suivantes (leur code est toujours écrit) et revient là où on était |
+| 71 | Projet **sans** git | La relecture marche, et l'encadré affiche l'explication à la place du bouton |
+| 72 | Projet git avec un arbre **sale au moment de l'import** | Idem : indisponible avec l'explication, et la vue Sortie porte la raison dès l'import |
+| 73 | `learnpath.gitCheckpoints` à `false` | Aucun commit n'est créé, et l'encadré nomme l'option. Repasser l'option à `true` sur un parcours importé sans base : toujours indisponible, avec l'invitation à réimporter |
 
 ---
 

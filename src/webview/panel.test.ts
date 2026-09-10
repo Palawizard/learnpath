@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { ViewModel } from '../core/viewmodel.js'
-import { renderHeader, renderMain, renderStatus } from './render.js'
+import { renderHeader, renderMain, renderStatus, renderWelcome } from './render.js'
 import { renderMarkdown } from './markdown.js'
 import { renderShell } from './shell.js'
 import { parseWebviewMessage } from './protocol.js'
+import { renderPromptPage } from './prompt-form.js'
 
 /**
  * Le panneau lui-même (`panel.ts`) n'est qu'un branchement `vscode` : ce qu'il y a à
@@ -26,11 +27,14 @@ function model(overrides: Partial<ViewModel> = {}): ViewModel {
     hints: [],
     hintsRemaining: 2,
     solutionRevealed: false,
+    solution: [],
     status: { kind: 'none', summary: '', advanced: false },
     running: false,
     regressions: [],
     finished: false,
     recap: [],
+    currentPosition: 2,
+    readOnly: false,
     ...overrides,
   }
 }
@@ -80,6 +84,52 @@ describe('renderMain — bloc Attendu, indices, actions', () => {
 
   it("désactive le bouton d'indice quand il n'en reste plus", () => {
     expect(renderMain(model({ hintsRemaining: 0 }))).toContain('data-action="hint" disabled')
+  })
+
+  it("affiche la solution d'une étape à un fichier, avec chemin, code et bouton de copie", () => {
+    const html = renderMain(
+      model({
+        solutionRevealed: true,
+        solution: [{ file: 'src/panier.js', content: 'export const panier = []\n' }],
+      })
+    )
+    expect(html).toContain('<code class="file">src/panier.js</code>')
+    expect(html).toContain('data-action="copy" data-file="src/panier.js"')
+    expect(html).toContain('<span class="tok-keyword">export</span>')
+    // Le code s'affiche, il n'est pas écrit : le panneau le dit (D34).
+    expect(html).toContain("rien n'a été écrit dans tes fichiers")
+  })
+
+  it('affiche un bloc par fichier quand une étape en touche plusieurs', () => {
+    const html = renderMain(
+      model({
+        solutionRevealed: true,
+        solution: [
+          { file: 'src/panier.js', content: 'export const panier = []\n' },
+          { file: 'src/total.js', content: 'export const total = 0\n' },
+        ],
+      })
+    )
+    expect(html.match(/class="solution-file"/g)).toHaveLength(2)
+    expect(html).toContain('data-file="src/panier.js"')
+    expect(html).toContain('data-file="src/total.js"')
+    // Chaque fichier a son propre bloc de code, pas un pavé commun à redécouper.
+    expect(html.match(/<pre class="code">/g)).toHaveLength(2)
+  })
+
+  it("n'affiche rien tant que la solution n'est pas révélée", () => {
+    expect(renderMain(model())).not.toContain('class="solution-file"')
+  })
+
+  it('échappe le HTML de la solution au lieu de le rendre', () => {
+    const html = renderMain(
+      model({
+        solutionRevealed: true,
+        solution: [{ file: 'src/x.js', content: '// <script>alert(1)</script>' }],
+      })
+    )
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
   })
 
   it('désactive le bouton Solution une fois la solution affichée', () => {
@@ -277,9 +327,61 @@ describe('renderShell', () => {
   })
 })
 
+describe("renderWelcome — l'état d'accueil, sans parcours", () => {
+  const html = renderWelcome()
+
+  it("dit ce que fait l'extension et offre le bouton d'import", () => {
+    expect(html).toContain('Aucun parcours dans ce projet')
+    expect(html).toContain('à chaque sauvegarde')
+    expect(html).toContain('data-action="import"')
+    expect(html).toContain('Importer un parcours')
+  })
+
+  it('compose le prompt depuis l’extension, sans renvoyer à une copie à recopier', () => {
+    expect(html).toContain('data-action="generatePrompt"')
+    expect(html).toContain('Générer le prompt')
+    expect(html).not.toContain('http')
+  })
+})
+
+describe('renderPromptPage — le formulaire de génération du prompt', () => {
+  const html = renderPromptPage('N0NCE', undefined)
+
+  it('demande les trois champs, et rend le seul obligatoire obligatoire', () => {
+    expect(html).toContain('id="feature"')
+    expect(html).toContain('required')
+    expect(html).toContain('value="débutant"')
+    expect(html).toContain('value="intermédiaire"')
+    expect(html).toContain('id="files"')
+  })
+
+  it('affiche le prompt en entier, modifiable, avec le bouton de copie', () => {
+    // Le point non négociable : un formulaire qui masque ce qu'on envoie retire toute
+    // prise le jour où le résultat déçoit.
+    expect(html).toMatch(/<textarea id="prompt"/)
+    expect(html).toContain('id="copy"')
+    expect(html).toContain('Copier')
+  })
+
+  it('garde la CSP du panneau et porte le nonce', () => {
+    expect(html).toContain("default-src 'none'")
+    expect(html).toContain("script-src 'nonce-N0NCE'")
+    expect(html).toContain('<style nonce="N0NCE">')
+  })
+
+  it('signale un projet non JS/TS sans rien bloquer', () => {
+    const withNotice = renderPromptPage('N0NCE', 'Pas de package.json')
+    expect(withNotice).toContain('Pas de package.json')
+    expect(withNotice).toContain('<form id="form">')
+    expect(html).not.toContain('package.json')
+  })
+})
+
 describe('parseWebviewMessage — frontière de confiance', () => {
-  it('accepte les trois messages du protocole', () => {
+  it('accepte les messages du protocole', () => {
     expect(parseWebviewMessage({ type: 'ready' })).toEqual({ type: 'ready' })
+    expect(parseWebviewMessage({ type: 'import' })).toEqual({ type: 'import' })
+    expect(parseWebviewMessage({ type: 'generatePrompt' })).toEqual({ type: 'generatePrompt' })
     expect(parseWebviewMessage({ type: 'revealHint', stepId: '1.2' })).toEqual({
       type: 'revealHint',
       stepId: '1.2',
@@ -287,6 +389,15 @@ describe('parseWebviewMessage — frontière de confiance', () => {
     expect(parseWebviewMessage({ type: 'revealSolution', stepId: '1.2' })).toEqual({
       type: 'revealSolution',
       stepId: '1.2',
+    })
+    expect(parseWebviewMessage({ type: 'review', stepId: '1.1' })).toEqual({
+      type: 'review',
+      stepId: '1.1',
+    })
+    expect(parseWebviewMessage({ type: 'reviewExit' })).toEqual({ type: 'reviewExit' })
+    expect(parseWebviewMessage({ type: 'redo', stepId: '1.1' })).toEqual({
+      type: 'redo',
+      stepId: '1.1',
     })
   })
 
@@ -301,6 +412,12 @@ describe('parseWebviewMessage — frontière de confiance', () => {
       { type: 'revealHint' },
       { type: 'revealHint', stepId: 12 },
       { type: 'revealSolution', stepId: { toString: () => '1.2' } },
+      { type: 'importer' },
+      { type: 'generatePrompts' },
+      { type: 'redo' },
+      { type: 'redo', stepId: 3 },
+      { type: 'review', stepId: ['1.1'] },
+      { type: 'refaire', stepId: '1.1' },
       { type: 'writeFile', path: '../../.bashrc' },
     ]) {
       expect(parseWebviewMessage(raw)).toBeUndefined()
@@ -363,5 +480,82 @@ describe('renderStatus — run en cours et traduction des erreurs', () => {
     )
     expect(html).toContain('Erreur jamais vue')
     expect(html).not.toContain('<details')
+  })
+})
+
+describe('renderMain — relire une étape passée, et refaire une étape', () => {
+  const review = {
+    stepId: '1.1',
+    review: {
+      previousStepId: undefined,
+      nextStepId: '1.2',
+      redo: { stepId: '1.1', files: ['src/panier.js'], available: true },
+    },
+    readOnly: true,
+    position: 1,
+    currentPosition: 3,
+  }
+
+  it('annonce la lecture seule et propose la navigation, sans indice ni solution', () => {
+    const html = renderMain(model(review))
+
+    expect(html).toContain('Lecture seule')
+    expect(html).toContain('data-action="review" data-step="1.2"')
+    expect(html).toContain('data-action="reviewExit"')
+    // Les gestes de l'étape courante n'existent pas ici.
+    expect(html).not.toContain('data-action="hint"')
+    expect(html).not.toContain('data-action="solution"')
+  })
+
+  it('nomme les fichiers remplacés avant même la confirmation', () => {
+    const html = renderMain(model(review))
+
+    expect(html).toContain('Refaire cette étape')
+    expect(html).toContain('src/panier.js')
+    expect(html).toContain('data-action="redo" data-step="1.1"')
+    // Le libellé annonce une boîte de dialogue, pas une écriture immédiate.
+    expect(html).toContain('Refaire l’étape 1.1…'.replace('’', "'"))
+  })
+
+  it('indisponible : l\'explication s\'affiche et le bouton n\'existe pas', () => {
+    const html = renderMain(
+      model({
+        ...review,
+        review: {
+          ...review.review,
+          redo: {
+            stepId: '1.1',
+            files: ['src/panier.js'],
+            available: false,
+            reason: "Ce projet n'est pas un dépôt git.",
+          },
+        },
+      })
+    )
+
+    // Le texte est échappé comme tout le reste : on cherche la partie sans apostrophe.
+    expect(html).toContain('pas un dépôt git.')
+    expect(html).not.toContain('data-action="redo"')
+  })
+
+  it('l\'entrée en relecture est un lien discret, séparé des actions de l\'étape', () => {
+    const html = renderMain(model({ reviewEntry: '1.1' }))
+
+    expect(html).toContain('data-action="review" data-step="1.1"')
+    expect(html).toContain('Relire une étape passée')
+    expect(html).toContain("lecture seule, rien n'est modifié")
+  })
+
+  it('sans étape validée, aucune entrée en relecture', () => {
+    expect(renderMain(model())).not.toContain('data-action="review"')
+  })
+
+  it('la barre de progression suit le parcours, pas l\'étape relue', () => {
+    const html = renderHeader(model(review))
+
+    expect(html).toContain('Relecture — étape 1 / 5')
+    // Deux étapes acquises : la troisième est l'étape courante.
+    expect(html.match(/segment done/g)).toHaveLength(2)
+    expect(html).toContain('segment current')
   })
 })
