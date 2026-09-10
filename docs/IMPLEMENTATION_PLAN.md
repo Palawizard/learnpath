@@ -117,7 +117,7 @@ avec les mêmes critères : la publication attend un produit dont on est sûr. S
   précédente pendant ce temps
 - Ergonomie : panneau de fin réduit au récapitulatif, barre de progression segmentée
   cohérente avec le compteur
-- `learnpath.reset` : recommencer depuis l'étape 1, ou supprimer le parcours (D23)
+- `learnpath.reset` : recommencer depuis l'étape 1, ou nettoyer le parcours en gardant son JSON généré (D23, D38)
 - Gestionnaires de paquets : pnpm traité, Yarn PnP refusé avec un message clair
 - Non-interférence avec un projet qui a déjà Vitest et sa config, dans les deux sens
 - Reprise à la bonne étape après fermeture de l'éditeur

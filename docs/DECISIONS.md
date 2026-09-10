@@ -1252,3 +1252,21 @@ protège de rien — l'import, lui, valide pour de bon.
 du texte et le met dans le presse-papiers, l'agent reste celui de l'utilisateur. Pas
 d'historique des prompts composés, pas de préremplissage depuis le parcours en cours : à
 rouvrir si quelqu'un le demande.
+
+---
+
+## D38 — Supprimer une session conserve les parcours JSON générés
+
+**Problème.** Le second choix de `learnpath.reset` supprimait `.learn/` en entier, y compris
+le JSON produit en amont par l'agent. Progression, tests, config et caches sont
+reproductibles à l'import ; le parcours ne l'est pas sans payer une nouvelle génération.
+
+**Décision.** « Supprimer le parcours (garder le JSON généré) » supprime tout le contenu de
+`.learn/` sauf les fichiers ordinaires `.learn/parcours/*.json`. Sans JSON à garder,
+`.learn/` disparaît entièrement. Une erreur de lecture de `parcours/` arrête le nettoyage :
+elle n'est jamais assimilée à un dossier vide, car la priorité est de ne pas perdre le
+fichier coûteux.
+
+Le `state.json` disparaît bien : aucun parcours conservé ne redevient actif tout seul. Le
+message final donne son chemin et demande une réimportation explicite. Aucun autre fichier,
+même placé dans `.learn/parcours/`, n'est conservé.

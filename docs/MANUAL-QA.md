@@ -86,7 +86,7 @@ y écrire `function (` (code invalide), écrire une implémentation fausse mais 
 |---|---|---|
 | 26 | **LearnPath : Réinitialiser le parcours** | **Un seul** dialogue, deux choix, et un texte qui dit explicitement que le code écrit n'est jamais touché |
 | 27 | « Recommencer depuis l'étape 1 » | Progression remise à zéro, `.learn/tests/` toujours là, code de l'utilisateur intact |
-| 28 | « Supprimer le parcours » | `.learn/` disparaît entièrement, code de l'utilisateur intact |
+| 28 | « Supprimer le parcours (garder le JSON généré) » | Progression, tests, config et caches supprimés ; seul `.learn/parcours/*.json` reste, inchangé et réimportable ; code de l'utilisateur intact |
 | 29 | Réinitialiser avec un `state.json` volontairement corrompu | Fonctionne quand même (le parcours est relu directement) |
 
 ## Focus et accessibilité

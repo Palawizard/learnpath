@@ -46,10 +46,27 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 
 ## Lot en cours
 
-**Septième session de correction, hors lot** — nouvelle fonctionnalité demandée : composer
-le prompt de génération depuis l'extension, à partir d'une source unique (D37).
+**Huitième session de correction, hors lot** — la suppression d'une session conserve
+désormais les parcours JSON générés (D38).
 
 ## Ce qui a été fait dans cette session
+
+**« Supprimer le parcours » ne détruit plus le résultat coûteux de la génération.**
+Raisonnement complet dans **D38**.
+
+- `removeParcours` supprime progression, tests, config et caches, mais garde les fichiers
+  ordinaires `.learn/parcours/*.json`, inchangés. Sans JSON, `.learn/` disparaît comme avant.
+- Une erreur de lecture de `parcours/` arrête tout le nettoyage au lieu d'être prise pour
+  un dossier vide. Un dossier ou un autre fichier simplement nommé `*.json` n'est pas
+  conservé.
+- Le dialogue annonce précisément ce qui part et ce qui reste ; le message final donne le
+  chemin conservé et invite à le réimporter. Le `state.json` étant supprimé, rien ne se
+  réactive seul.
+- Version **0.1.6** ; README, architecture, UX, plan et point 28 de la QA manuelle à jour.
+  `learnpath-0.1.6.vsix` a été généré puis installé dans VSCodium, qui confirme
+  `palawizard.learnpath@0.1.6`.
+
+## Ce qui a été fait dans la session précédente
 
 **Le prompt de génération est composé par l'extension.** Raisonnement complet dans **D37**.
 
@@ -73,7 +90,7 @@ le prompt de génération depuis l'extension, à partir d'une source unique (D37
 - Docs à jour : `SPEC-PARCOURS.md` et `README` (renvoi au fichier, plus de copie),
   `UX.md`, `MANUAL-QA.md` (points 74 à 84), `DECISIONS.md` (D37).
 
-## Ce qui a été fait dans la session précédente
+## Ce qui a été fait dans la session antérieure
 
 **Sixième session de correction, hors lot** — nouvelle fonctionnalité demandée : refaire une
 étape déjà validée en retrouvant le code d'avant elle (D36). Le lot 7 (Publication) reste
@@ -147,7 +164,11 @@ reproduction est sous Linux, où ce sont des liens symboliques). Si le plantage 
 
 ## État des vérifications automatiques
 
-`npm run compile` et `npm test` au vert : **316 tests, 19 fichiers**.
+`npm run compile` et `npm test` au vert : **323 tests, 19 fichiers**.
+
+Les 13 tests de `reset.test.ts` couvrent notamment la conservation octet pour octet du
+JSON, la suppression de tout le reste, l'absence de reprise automatique, l'idempotence,
+le cas sans JSON et le refus sûr quand `parcours/` ne peut pas être lu.
 
 Les 11 tests de cette session : `prompt.test.ts` lit **le fichier livré**
 (`prompts/generer-parcours.md`), pas une copie de test — c'est ce qui fait tomber la suite
@@ -214,14 +235,14 @@ création des comptes `Palawizard` (marketplace VS Code, Open VSX).
 
 ## Prochaine action concrète
 
-0. Dérouler les points **74 à 84** de `MANUAL-QA.md` : c'est la nouveauté de cette session,
+0. Vérifier le point **28** de `MANUAL-QA.md` dans VSCodium : après suppression, seul le
+   JSON doit rester et il doit pouvoir être réimporté sans nouvelle génération.
+1. Dérouler les points **74 à 84** de `MANUAL-QA.md` : c'est la nouveauté de cette session,
    et rien du formulaire n'a pu tourner dans un vrai hôte. Le point 81 (le prompt copié est
    celui de `prompts/generer-parcours.md`) est celui qui décide si D37 tient.
-1. Dérouler les points **55 à 73** de `MANUAL-QA.md` dans un vrai dépôt git : c'est la
+2. Dérouler les points **55 à 73** de `MANUAL-QA.md` dans un vrai dépôt git : c'est la
    nouveauté de cette session, et le point 66 (fichier ouvert et modifié non sauvegardé)
    est celui qui décide si D36 tient ou reproduit le bug de D34.
-2. Pousser la branche : la CI se déclenche pour la première fois, sur les quatre
-   combinaisons. Corriger ce qu'elle trouve avant tout le reste.
 3. Dérouler `docs/MANUAL-QA.md` dans l'Extension Development Host, puis dans VSCodium.
    Les points 45 à 54 (barre d'activité, accueil, actions du titre) sont neufs et n'ont
    jamais tourné dans un vrai hôte : c'est le premier changement de cette session à

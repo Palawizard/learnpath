@@ -121,14 +121,16 @@ async function resetCommand(): Promise<void> {
   const root = workspace.uri.fsPath
 
   const RESTART = 'Recommencer depuis l’étape 1'
-  const REMOVE = 'Supprimer le parcours'
+  const REMOVE = 'Supprimer le parcours (garder le JSON généré)'
   const answer = await vscode.window.showWarningMessage('LearnPath — réinitialiser le parcours ?', {
     modal: true,
     detail: [
       'Ton code n’est jamais touché : ces deux actions ne modifient que le dossier .learn/.',
       '',
       `• ${RESTART} : la progression repart à zéro, les tests du parcours restent en place.`,
-      `• ${REMOVE} : tout le dossier .learn/ est supprimé — parcours, tests et progression.`,
+      `• ${REMOVE} : progression, tests et config sont supprimés. Le ou les fichiers de`,
+      `  parcours générés restent dans .learn/parcours/ — les régénérer coûterait un`,
+      `  aller-retour à ton agent, alors qu'il suffit de les réimporter.`,
     ].join('\n'),
   }, RESTART, REMOVE)
   if (answer === undefined) return
@@ -155,7 +157,9 @@ async function resetCommand(): Promise<void> {
   stopWatching()
   setActive(false)
   void vscode.window.showInformationMessage(
-    'LearnPath — le dossier .learn/ a été supprimé. Ton code n’a pas été touché.'
+    removed.value.length === 0
+      ? 'LearnPath — le dossier .learn/ a été supprimé. Ton code n’a pas été touché.'
+      : `LearnPath — progression et tests supprimés. Le parcours généré est conservé (${removed.value.join(', ')}) : réimporte-le pour le rejouer sans le régénérer. Ton code n’a pas été touché.`
   )
 }
 

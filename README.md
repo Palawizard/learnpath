@@ -166,8 +166,10 @@ projet. Tu repars avec du code testé, pas avec un badge.
 ## Désinstaller un parcours
 
 **LearnPath : Réinitialiser le parcours** propose deux choses : recommencer depuis
-l'étape 1 (les tests restent en place) ou supprimer `.learn/` entièrement. Dans les deux
-cas, **le code que tu as écrit n'est pas touché**.
+l'étape 1 (les tests restent en place) ou supprimer la progression, les tests, la config
+et les caches. Dans ce second cas, le JSON généré reste dans `.learn/parcours/` : tu peux
+le réimporter sans payer une nouvelle génération. Dans les deux cas, **le code que tu as
+écrit n'est pas touché**.
 
 ## Commandes
 

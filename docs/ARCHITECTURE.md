@@ -24,7 +24,7 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 | `importer.ts` | Écrit `.learn/`, les tests, la config Vitest, joue `setup` |
 | `verify.ts` | Vérifications d'import : « tout doit être rouge » (D5) et « les solutions cumulées doivent tout laisser vert », dans une copie temporaire du workspace (D21) |
 | `reveal.ts` | Indice suivant, marquage de la solution comme révélée ; `planSolution`, qui n'écrit plus que pour `verify.ts` (D34) |
-| `reset.ts` | Recommencer depuis l'étape 1, ou supprimer `.learn/` (D23) |
+| `reset.ts` | Recommencer depuis l'étape 1, ou nettoyer `.learn/` en gardant les parcours JSON générés (D23, D38) |
 | `git.ts` | Plomberie git : commit dans un index temporaire, références `refs/learnpath*`, restauration de chemins. Ne touche jamais HEAD, la branche ni l'index (D36) |
 | `redo.ts` | Refaire une étape validée : disponibilité, point de restauration par étape, plan de reprise et application (D36) |
 | `prompt.ts` | Compose le prompt de génération depuis le gabarit unique `prompts/generer-parcours.md`, qui lui est passé en argument (D37) |

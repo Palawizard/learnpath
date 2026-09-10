@@ -232,6 +232,8 @@ du projet.
 ## Réinitialiser
 
 Un seul dialogue, deux choix : « Recommencer depuis l'étape 1 » (la progression repart à
-zéro, les tests restent) et « Supprimer le parcours » (tout `.learn/` disparaît). Le texte
-du dialogue dit explicitement que **le code écrit par l'utilisateur n'est jamais touché**.
-C'est la peur qu'on a le doigt sur le bouton : elle se lève là (D23).
+zéro, les tests restent) et « Supprimer le parcours (garder le JSON généré) » (progression,
+tests, config et caches disparaissent ; `.learn/parcours/*.json` reste). Le texte du
+dialogue dit explicitement que **le code écrit par l'utilisateur n'est jamais touché** et
+que le JSON peut être réimporté sans nouvelle génération. C'est la peur qu'on a le doigt
+sur le bouton : elle se lève là (D23, D38).
