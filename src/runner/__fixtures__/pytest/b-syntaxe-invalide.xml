@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="5" failures="0" skipped="0" tests="5" time="0.296" timestamp="2026-09-15T09:43:35.474593+02:00" hostname="PalaArch"><testcase classname="" name=".learn.tests.test_step_1_1" time="0.000"><error message="collection failure">../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+.learn/tests/test_step_1_1.py:1: in &lt;module&gt;
+    from panier import creer_panier
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/../panier.py", line 1
+E       def creer_panier(:
+E                        ^
+E   SyntaxError: invalid syntax</error></testcase><testcase classname="" name=".learn.tests.test_step_1_2" time="0.000"><error message="collection failure">../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+.learn/tests/test_step_1_2.py:1: in &lt;module&gt;
+    from panier import ajouter_article, creer_panier
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/../panier.py", line 1
+E       def creer_panier(:
+E                        ^
+E   SyntaxError: invalid syntax</error></testcase><testcase classname="" name=".learn.tests.test_step_1_3" time="0.000"><error message="collection failure">../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+.learn/tests/test_step_1_3.py:1: in &lt;module&gt;
+    from panier import ajouter_article, creer_panier, total
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/../panier.py", line 1
+E       def creer_panier(:
+E                        ^
+E   SyntaxError: invalid syntax</error></testcase><testcase classname="" name=".learn.tests.test_step_1_4" time="0.000"><error message="collection failure">../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+.learn/tests/test_step_1_4.py:1: in &lt;module&gt;
+    from panier import PROMOS
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/../panier.py", line 1
+E       def creer_panier(:
+E                        ^
+E   SyntaxError: invalid syntax</error></testcase><testcase classname="" name=".learn.tests.test_step_1_5" time="0.000"><error message="collection failure">../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+.learn/tests/test_step_1_5.py:1: in &lt;module&gt;
+    from panier import ajouter_article, appliquer_promo, creer_panier, total
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/../panier.py", line 1
+E       def creer_panier(:
+E                        ^
+E   SyntaxError: invalid syntax</error></testcase></testsuite></testsuites>

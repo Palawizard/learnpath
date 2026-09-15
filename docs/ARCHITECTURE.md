@@ -33,15 +33,19 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 | `progression.ts` | Session, filtrage des sauvegardes, quel run lancer, quoi faire du résultat, `RunLoop` (debounce et annulation) |
 | `finish.ts` | Fin de parcours : déplacement proposé de `.learn/tests/` (D17) |
 | `paths.ts` | Résolution et **validation de sécurité** des chemins du parcours |
-| `exec.ts` | Lancement des CLI sans shell, y compris sous Windows (D18, D24) ; résolution du CLI Vitest et refus explicite de Yarn PnP |
+| `exec.ts` | Lancement des CLI sans shell, y compris sous Windows (D18, D24) ; résolution du CLI Vitest et refus explicite de Yarn PnP ; résolution de l'interpréteur Python et des commandes de setup Python (D39) |
 
 ### `src/runner/` — exécution des tests, sans `vscode`
 
 | Fichier | Responsabilité |
 |---|---|
-| `vitest.ts` | Construit l'argv depuis `runner.kind` (D14), lance le process sans shell, lit `--outputFile` |
+| `run-tests.ts` | Le seul aiguillage sur `runner.kind` : Vitest ou pytest (D14, D39) |
+| `vitest.ts` | Construit l'argv Vitest (D14), lance le process sans shell, lit `--outputFile` |
+| `pytest.ts` | Construit l'argv pytest (`-c .learn/pytest.ini`, fichiers de test de l'étape), lit `--junitxml`, nomme chaque test par son étape (D39) |
+| `spawn.ts` | Lancement borné commun aux deux runners : délai, annulation, sortie conservée |
 | `parse.ts` | Sortie Vitest JSON → `RawResult`, sans jamais lever |
-| `classify.ts` | Classe un run en `pass` / `missing-file` / `collect-error` / `assertion-failed` |
+| `junit.ts` | Rapport JUnit XML de pytest → le même `RawResult`, sans dépendance ni exception (D39) |
+| `classify.ts` | Classe un run en `pass` / `missing-file` / `collect-error` / `assertion-failed`, pour les deux runners |
 
 `classify.ts` est le module qui fait la qualité perçue du produit. À soigner et à
 tester avec de vraies fixtures.
@@ -115,10 +119,16 @@ clic « Relire une étape passée »   (lecture seule, aucune écriture)
 ```
 .learn/
   parcours/<slug>.json
-  tests/step-<id>.spec.ts
-  vitest.config.mts
-  state.json          ← à ajouter au .gitignore par l'extension
+  tests/step-<id>.spec.ts      ← ou tests/test_step_<id>.py avec pytest
+  vitest.config.mts            ← ou pytest.ini avec pytest (D39)
+  state.json                   ← à ajouter au .gitignore par l'extension
 ```
+
+Avec pytest, le `setup` du parcours peut créer l'environnement virtuel du projet
+(`python -m venv .venv`) et y installer pytest : c'est une commande que l'utilisateur a vue
+et confirmée, comme `npm i -D vitest`. pytest tourne sans cache ni bytecode
+(`-p no:cacheprovider`, `PYTHONDONTWRITEBYTECODE`) : aucun `__pycache__` ni `.pytest_cache`
+n'apparaît à côté du code de l'utilisateur.
 
 La sortie brute de Vitest n'est plus écrite ici : chaque run écrit son rapport dans un
 temporaire système qu'il supprime ensuite (D14).
@@ -138,6 +148,6 @@ jamais sur `HEAD`, jamais dans l'index (D36).
 ## Ce qui est explicitement hors périmètre du v1
 
 - Génération du parcours dans l'extension (c'est le rôle de l'agent externe)
-- Autre langage que JS/TS, autre runner que Vitest
+- Autre langage que JS/TS et Python, autre runner que Vitest et pytest
 - Synchronisation cloud, comptes, partage de parcours
 - Multi-parcours simultanés (un seul parcours actif à la fois)

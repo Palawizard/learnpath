@@ -8,16 +8,20 @@ dans git et dans `DECISIONS.md`).
 
 ## Date de dernière mise à jour
 
-2026-09-10
+2026-09-15
 
 ## À VÉRIFIER PAR UN HUMAIN AVANT DE PUBLIER
 
 Rien de ce qui suit n'a été fait, et rien ne peut l'être depuis une session d'agent :
 aucun accès à l'Extension Development Host, aucun accès à VSCodium.
 
-**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 84 points, un par
+**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 96 points, un par
 ligne, avec le résultat attendu.** Dans l'ordre de priorité :
 
+0. **Jouer le parcours Python de bout en bout dans VSCodium** (points 85 à 96, nouveaux) :
+   `examples/exemple-panier-python.json`, dans `examples/demo-project-python`. La boucle
+   est vérifiée par de vrais runs pytest hors éditeur, jamais dans un vrai hôte — et le
+   point 96 (alias Microsoft Store sous Windows) n'a pu être testé qu'en simulation.
 1. **Jouer le parcours panier de bout en bout dans VSCodium** (points 39 à 44). C'est la
    promesse centrale du projet et elle n'a jamais été démontrée.
 2. **Les trois états rouges à l'écran** (points 6 à 10) : le point qui décide si le
@@ -46,10 +50,37 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 
 ## Lot en cours
 
-**Huitième session de correction, hors lot** — la suppression d'une session conserve
-désormais les parcours JSON générés (D38).
+**Lot 8 — Python (pytest)**, sur la branche `feat/python` issue de `dev`. Fait côté code,
+vrais runs pytest compris ; reste la vérification à l'écran (points 85 à 96).
 
 ## Ce qui a été fait dans cette session
+
+**Les parcours Python se jouent avec pytest, avec les mêmes garanties que Vitest.**
+Raisonnement complet dans **D39**. Version **0.2.0**.
+
+- **Format** : `runner.kind: "pytest"`. `environment` refusé ; fichier de test imposé en nom
+  de module (`.learn/tests/test_step_1_1.py`) ; liste blanche de `setup` par runner (`pip`,
+  `uv`, `poetry`, `python -m venv|pip`). Exemple : `examples/exemple-panier-python.json`,
+  projet démo `examples/demo-project-python/`.
+- **`src/runner/pytest.ts`** (neuf) : `-c .learn/pytest.ini`, fichiers des étapes jouées,
+  `--continue-on-collection-errors`, `--junitxml` en temporaire, sans cache ni bytecode.
+  **`junit.ts`** (neuf) lit le rapport en `RawResult` sans dépendance. **`run-tests.ts`**
+  (neuf) est l'aiguillage unique ; **`spawn.ts`** (neuf) factorise le lancement borné.
+- **`exec.ts`** : `pythonFor` (`.venv`, `venv`, `VIRTUAL_ENV`, PATH sans alias du Store) et
+  `setupLauncher` (`pip` → `<python> -m pip`, `python -m venv` par le Python système, non
+  rejoué si le venv existe).
+- **`classify.ts`** : `No module named` et `cannot import name` d'un module attendu =
+  `missing-file`. **`humanize.ts`** : sept formes Python traduites.
+- **Import** : `.learn/pytest.ini` au lieu de la config Vitest, `.gitignore` sans `.vite`.
+- **Prompt** (`prompts/generer-parcours.md`) : choix du runner selon le projet, règles
+  pytest. Le bandeau du formulaire reconnaît un projet Python.
+- **UI** : « Message brut du runner de tests » au lieu de « … de Vitest ».
+- **CI** : `setup-python`, `pip install pytest`, `LEARNPATH_REQUIRE_PYTEST=1`.
+- Docs : `AGENTS.md` (règle 4, tests, pièges), `SPEC-PARCOURS.md` (section « Parcours
+  pytest »), `ARCHITECTURE.md`, `UX.md`, `IMPLEMENTATION_PLAN.md` (lot 8), `MANUAL-QA.md`
+  (85 à 96), `README`, `DECISIONS.md` (D39).
+
+## Ce qui a été fait dans la session précédente
 
 **« Supprimer le parcours » ne détruit plus le résultat coûteux de la génération.**
 Raisonnement complet dans **D38**.
@@ -70,7 +101,7 @@ Raisonnement complet dans **D38**.
   le message du journal affiche le chemin portable `.learn/verify.log` plutôt qu'un chemin
   absolu avec les séparateurs de l'OS.
 
-## Ce qui a été fait dans la session précédente
+## Ce qui a été fait dans la session antérieure à la précédente
 
 **Le prompt de génération est composé par l'extension.** Raisonnement complet dans **D37**.
 
@@ -168,7 +199,18 @@ reproduction est sous Linux, où ce sont des liens symboliques). Si le plantage 
 
 ## État des vérifications automatiques
 
-`npm run compile` et `npm test` au vert : **323 tests, 19 fichiers**.
+`npm run compile` et `npm test` au vert : **395 tests, 22 fichiers**, dont les vrais runs
+pytest (lancés avec `VIRTUAL_ENV` pointant un venv avec pytest 9.1.1 et
+`LEARNPATH_REQUIRE_PYTEST=1`). Sans Python avec pytest, les 5 tests de `pytest réel` sont
+sautés localement ; la CI les exige.
+
+Les 72 tests Python : `junit.test.ts` (fixtures JUnit réelles, robustesse), `python.test.ts`
+(format, liste blanche, classification et traductions sur fixtures réelles, résolution de
+l'interpréteur, import avec runs injectés) et `pytest.test.ts` (import complet de l'exemple,
+boucle de jeu jusqu'à 1.3 avec régression, config du projet ignorée, paquet `app/`, solution
+régressive refusée, aucun `__pycache__` ni `.pytest_cache`, Python ou pytest introuvables).
+Hors suite, rejoué une fois : import avec le vrai setup (`python -m venv .venv` puis
+`pip install pytest`, réseau pour pip) et réimport qui ne recrée pas le venv.
 
 Les 13 tests de `reset.test.ts` couvrent notamment la conservation octet pour octet du
 JSON, la suppression de tout le reste, l'absence de reprise automatique, l'idempotence,
@@ -239,6 +281,9 @@ création des comptes `Palawizard` (marketplace VS Code, Open VSX).
 
 ## Prochaine action concrète
 
+00. Pousser `feat/python` et regarder la CI : c'est la première fois que les runs pytest
+    tournent sous **Windows** (`python.exe`, `Scripts\`, chemins du rapport JUnit). Puis
+    dérouler les points **85 à 96** de `MANUAL-QA.md` dans VSCodium.
 0. Vérifier le point **28** de `MANUAL-QA.md` dans VSCodium : après suppression, seul le
    JSON doit rester et il doit pouvoir être réimporté sans nouvelle génération.
 1. Dérouler les points **74 à 84** de `MANUAL-QA.md` : c'est la nouveauté de cette session,

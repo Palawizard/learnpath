@@ -29,8 +29,10 @@ par un agent externe et importé comme un fichier.
    `refs/learnpath*`), jamais sur une branche : pas de `reset`, pas de `rebase`, pas de
    `commit --amend`, jamais `git add -A`.
 4. **La config de test du projet est sacrée.** On écrit notre propre
-   `.learn/vitest.config.ts` et on lance avec `--config`. On ne modifie jamais le
+   `.learn/vitest.config.mts` et on lance avec `--config`. On ne modifie jamais le
    `vitest.config.*` existant ni le champ `scripts.test` du `package.json` de l'utilisateur.
+   Côté Python (D39), même règle : `.learn/pytest.ini` passé avec `-c`, et jamais un octet
+   de `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini` ou `conftest.py` lu ni écrit.
 5. **Un parcours importé est une donnée non fiable.** Il vient d'un LLM. Valider contre le
    JSON Schema, valider les chemins (aucun `..`, aucun chemin absolu), et refuser proprement
    plutôt que de planter.
@@ -57,7 +59,11 @@ par un agent externe et importé comme un fichier.
 - `npm test` lance Vitest sur `src/**/*.test.ts`.
 - Tout ce qui est dans `src/core` et `src/runner` doit être testé unitairement.
 - Le parsing de sortie Vitest se teste avec des fixtures JSON réelles, pas avec des objets
-  inventés à la main. Range-les dans `src/runner/__fixtures__/`.
+  inventés à la main. Range-les dans `src/runner/__fixtures__/`. Même règle pour pytest,
+  avec ses rapports JUnit XML réels dans `src/runner/__fixtures__/pytest/`.
+- Les vrais runs pytest (`src/runner/pytest.test.ts`) demandent un Python avec pytest,
+  trouvé comme l'extension le fait (`.venv`, `VIRTUAL_ENV`, PATH). Absent, ils sont sautés,
+  sauf avec `LEARNPATH_REQUIRE_PYTEST=1`, que la CI pose.
 
 ## Workflow de session
 
@@ -80,3 +86,8 @@ par un agent externe et importé comme un fichier.
   l'utilisateur tape et on affiche du rouge en permanence.
 - **`grep` de Vitest matche sur le nom complet du test**, `describe` inclus. C'est pour ça
   que chaque `describe` commence par `step <id>`.
+- **pytest s'arrête à la première erreur de collecte** sans `--continue-on-collection-errors`,
+  et en Python une étape pas commencée *est* une erreur de collecte (`cannot import name`).
+  Retirer ce drapeau fait passer toutes les étapes précédentes pour des régressions.
+- **`pythonpath` d'un ini passé par `-c` est relatif au dossier de l'ini**, pas à la racine :
+  c'est `..` dans `.learn/pytest.ini`. Détail dans `src/runner/__fixtures__/pytest/README.md`.

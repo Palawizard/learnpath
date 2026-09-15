@@ -4,11 +4,12 @@ import { spawn } from 'node:child_process'
 import { type Result, ok, err } from './result.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import { writeFileAtomic } from './atomic.js'
-import { launcher, notFoundMessage } from './exec.js'
+import { notFoundMessage, setupLauncher } from './exec.js'
 import type { Parcours } from './parcours.js'
 import { createState, writeState } from './state.js'
 import { type RunAll, type RunSteps, verifyAllRed, verifyAllGreen } from './verify.js'
 import { checkpointStart, writeBaseRef } from './redo.js'
+import { PYTEST_CONFIG } from '../runner/pytest.js'
 
 export interface ImportHooks {
   /**
@@ -42,9 +43,12 @@ export interface ImportReport {
   readonly checkpointsReason?: string
 }
 
-/** Seule entrée ajoutée au `.gitignore` : la progression. Le rapport de test, lui, est
- *  écrit dans un temporaire système et ne touche jamais le projet (D14). */
-const GITIGNORE_ENTRIES = ['.learn/state.json', '.learn/.vite/'] as const
+/** Entrées ajoutées au `.gitignore` : la progression, et le cache de Vite (D25). Le rapport
+ *  de test, lui, est écrit dans un temporaire système et ne touche jamais le projet (D14).
+ *  pytest n'a pas de cache à ignorer : il tourne sans cacheprovider ni bytecode (D39). */
+function gitignoreEntries(parcours: Parcours): readonly string[] {
+  return parcours.runner.kind === 'pytest' ? ['.learn/state.json'] : ['.learn/state.json', '.learn/.vite/']
+}
 const GITIGNORE_MARKER = '# LearnPath'
 
 export async function importParcours(
@@ -118,11 +122,16 @@ export async function importParcours(
       created.push(file.value)
     }
 
-    await writeFileAtomic(
-      paths.value.vitestConfig,
-      vitestConfig(await findViteConfig(paths.value.root), environmentOf(parcours))
-    )
-    created.push(paths.value.vitestConfig)
+    if (parcours.runner.kind === 'pytest') {
+      await writeFileAtomic(paths.value.pytestConfig, PYTEST_INI)
+      created.push(paths.value.pytestConfig)
+    } else {
+      await writeFileAtomic(
+        paths.value.vitestConfig,
+        vitestConfig(await findViteConfig(paths.value.root), environmentOf(parcours))
+      )
+      created.push(paths.value.vitestConfig)
+    }
 
     await writeFileAtomic(paths.value.parcoursFile, `${JSON.stringify(parcours, null, 2)}\n`)
     created.push(paths.value.parcoursFile)
@@ -132,7 +141,7 @@ export async function importParcours(
     await writeState(paths.value.stateFile, createState(parcours.slug, firstStep.id))
     created.push(paths.value.stateFile)
 
-    gitignoreUpdated = await updateGitignore(paths.value.gitignore)
+    gitignoreUpdated = await updateGitignore(paths.value.gitignore, gitignoreEntries(parcours))
   } catch (error) {
     const saved = await rollbackAll()
     return err(`L'écriture du parcours a échoué : ${message(error)}. ${kept(saved)}`)
@@ -207,6 +216,7 @@ interface Targets {
   readonly parcoursDir: ResolvedPath
   readonly parcoursFile: ResolvedPath
   readonly vitestConfig: ResolvedPath
+  readonly pytestConfig: ResolvedPath
   readonly stateFile: ResolvedPath
   readonly diagnosticLog: ResolvedPath
   readonly gitignore: ResolvedPath
@@ -219,6 +229,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   const parcoursDir = safeResolve(root, '.learn/parcours')
   const parcoursFile = safeResolve(root, `.learn/parcours/${parcours.slug}.json`)
   const vitestConfig = safeResolve(root, '.learn/vitest.config.mts')
+  const pytestConfig = safeResolve(root, PYTEST_CONFIG)
   const stateFile = safeResolve(root, '.learn/state.json')
   const diagnosticLog = safeResolve(root, '.learn/verify.log')
   const gitignore = safeResolve(root, '.gitignore')
@@ -231,6 +242,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   if (!parcoursDir.ok) return err(parcoursDir.error)
   if (!parcoursFile.ok) return err(`Le slug « ${parcours.slug} » ne donne pas un nom de fichier valide : ${parcoursFile.error}`)
   if (!vitestConfig.ok) return err(vitestConfig.error)
+  if (!pytestConfig.ok) return err(pytestConfig.error)
   if (!stateFile.ok) return err(stateFile.error)
   if (!diagnosticLog.ok) return err(diagnosticLog.error)
   if (!gitignore.ok) return err(gitignore.error)
@@ -242,6 +254,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
     parcoursDir: parcoursDir.value,
     parcoursFile: parcoursFile.value,
     vitestConfig: vitestConfig.value,
+    pytestConfig: pytestConfig.value,
     stateFile: stateFile.value,
     diagnosticLog: diagnosticLog.value,
     gitignore: gitignore.value,
@@ -370,8 +383,20 @@ export default defineConfig(async (env) => {
 `
 }
 
+/**
+ * La config pytest générée (D39). Elle est passée avec `-c` : pytest ne lit alors **que**
+ * elle, jamais `pytest.ini`, `pyproject.toml`, `setup.cfg` ni `tox.ini` du projet, et ne
+ * charge pas le `conftest.py` de sa racine (D3). `pythonpath` est relatif à ce fichier :
+ * `..` rend le code du projet importable depuis `.learn/tests/`, comme `root` pour Vitest.
+ */
+const PYTEST_INI = `# Généré par LearnPath. Ne pas éditer : réécrit à chaque import.
+# Aucun fichier du projet n'est modifié : sa config de test n'est ni lue ni appliquée.
+[pytest]
+pythonpath = ..
+`
+
 /** Idempotent : relancer l'import ne duplique aucune ligne. */
-async function updateGitignore(file: ResolvedPath): Promise<boolean> {
+async function updateGitignore(file: ResolvedPath, entries: readonly string[]): Promise<boolean> {
   let content = ''
   try {
     content = await fs.readFile(file, 'utf8')
@@ -379,7 +404,7 @@ async function updateGitignore(file: ResolvedPath): Promise<boolean> {
     content = ''
   }
   const present = new Set(content.split('\n').map((line) => line.trim()))
-  const missing = GITIGNORE_ENTRIES.filter((entry) => !present.has(entry))
+  const missing = entries.filter((entry) => !present.has(entry))
   if (missing.length === 0) return false
 
   const prefix = content === '' || content.endsWith('\n') ? content : `${content}\n`
@@ -400,9 +425,12 @@ function runCommand(
   cwd: ResolvedPath,
   log: (line: string) => void
 ): Promise<Result<void>> {
-  const [binary, ...args] = command.trim().split(/\s+/)
-  if (binary === undefined) return Promise.resolve(err('la commande est vide'))
-  const launch = launcher(binary, args)
+  if (command.trim() === '') return Promise.resolve(err('la commande est vide'))
+  const launch = setupLauncher(command, cwd)
+  if (launch.skip !== undefined) {
+    log(launch.skip)
+    return Promise.resolve(ok(undefined))
+  }
   // Sans ça, l'utilisateur reçoit « spawn npm ENOENT » et personne ne sait ce qui a été
   // cherché (D29). On explique avant même de tenter le lancement.
   if (!launch.resolved) return Promise.resolve(err(notFoundMessage(command, launch)))

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.015" timestamp="2026-09-15T09:43:35.999318+02:00" hostname="PalaArch"><testcase classname=".learn.tests.test_step_1_1" name="test_lignes_vides_et_aucune_promo" time="0.000"><failure message="assert [1] == []&#10;  &#10;  Left contains one more item: 1&#10;  Use -v to get more diff">.learn/tests/test_step_1_1.py:6: in test_lignes_vides_et_aucune_promo
+    assert p["lignes"] == []
+E   assert [1] == []
+E     
+E     Left contains one more item: 1
+E     Use -v to get more diff</failure></testcase><testcase classname=".learn.tests.test_step_1_1" name="test_nouvel_objet_a_chaque_appel" time="0.000" /></testsuite></testsuites>

@@ -86,18 +86,28 @@ async function handle(
 }
 
 /**
- * Le générateur a besoin d'un projet JS/TS pour écrire des tests Vitest qui tournent. On le
- * dit, on ne bloque pas : un dossier sans `package.json` peut très bien en recevoir un à
- * l'étape suivante, et ce n'est pas à ce formulaire d'en décider.
+ * Marqueurs d'un projet que LearnPath sait jouer : JS/TS (Vitest) ou Python (pytest, D39).
+ * Un dossier Python sans fichier de projet reste courant chez un débutant, d'où
+ * `requirements.txt` et le simple `.venv`.
+ */
+const PROJECT_MARKERS = ['package.json', 'pyproject.toml', 'requirements.txt', 'setup.py', '.venv', 'venv'] as const
+
+/**
+ * Le générateur a besoin d'un projet JS/TS ou Python pour écrire des tests qui tournent. On
+ * le dit, on ne bloque pas : un dossier vide peut très bien en devenir un à l'étape
+ * suivante, et ce n'est pas à ce formulaire d'en décider.
  */
 async function projectNotice(): Promise<string | undefined> {
   const root = vscode.workspace.workspaceFolders?.[0]
   if (root === undefined) return "Aucun dossier n'est ouvert : le parcours sera généré sans voir ton projet."
-  try {
-    await vscode.workspace.fs.stat(vscode.Uri.joinPath(root.uri, 'package.json'))
-    return undefined
-  } catch {
-    return 'Ce dossier ne ressemble pas à un projet JavaScript ou TypeScript (pas de package.json). Le prompt reste utilisable, mais LearnPath ne joue que des parcours Vitest.'
+  for (const marker of PROJECT_MARKERS) {
+    try {
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(root.uri, marker))
+      return undefined
+    } catch {
+      // marqueur suivant
+    }
   }
+  return 'Ce dossier ne ressemble ni à un projet JavaScript/TypeScript (pas de package.json), ni à un projet Python (pas de pyproject.toml, requirements.txt ni .venv). Le prompt reste utilisable, mais LearnPath ne joue que des parcours Vitest ou pytest.'
 }
 

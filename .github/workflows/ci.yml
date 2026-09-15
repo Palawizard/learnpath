@@ -9,7 +9,8 @@ jobs:
   build:
     # Windows n'est pas un extra : deux bugs du projet n'existaient que là (spawn d'un
     # .cmd refusé depuis Node 22, résolution du CLI de Vitest). Node 22 non plus :
-    # c'est la version qui a introduit le refus. Les tests lancent de vrais runs Vitest.
+    # c'est la version qui a introduit le refus. Les tests lancent de vrais runs Vitest
+    # et de vrais runs pytest (D39).
     name: ${{ matrix.os }} / node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -18,12 +19,20 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         node: [20, 22]
 
+    env:
+      # Sans pytest, les vrais runs Python seraient sautés en silence : on les exige.
+      LEARNPATH_REQUIRE_PYTEST: '1'
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest
       - run: npm ci
       - run: npm run compile
       - run: npm test

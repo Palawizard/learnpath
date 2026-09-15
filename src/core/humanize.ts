@@ -92,6 +92,60 @@ const RULES: readonly Rule[] = [
       `Le test a dépassé son délai et a été interrompu. Le rapport JSON de Vitest ne donne pas la durée ; en général une promesse n'est jamais résolue, ou un « await » manque.`,
     phases: ['run'],
   },
+
+  // --- pytest (D39) : formes relevées dans `__fixtures__/pytest/` ----------------------
+  {
+    match: /No module named ['"]([^'"]+)['"]/,
+    say: (m) =>
+      `Le module Python « ${m[1]} » est introuvable : ce fichier n'existe pas encore, ou le nom importé ne correspond pas à son chemin.`,
+    phases: ['collect', 'run'],
+  },
+  {
+    match: /cannot import name ['"]([^'"]+)['"] from ['"]([^'"]+)['"]/,
+    say: (m) =>
+      `Le module « ${m[2]} » ne définit pas « ${m[1]} » : pas encore écrit, ou écrit sous un autre nom.`,
+    phases: ['collect', 'run'],
+  },
+  {
+    match: /^AttributeError: module ['"]([^'"]+)['"] has no attribute ['"]([^'"]+)['"]/m,
+    say: (m) => `Le module « ${m[1]} » ne définit pas « ${m[2]} » : pas encore écrit, ou écrit sous un autre nom.`,
+    phases: ['run'],
+  },
+  {
+    match: /^NameError: name ['"]([^'"]+)['"] is not defined/m,
+    say: (m) =>
+      `« ${m[1]} » n'est défini nulle part là où il est utilisé : un nom mal orthographié, ou une variable ou une fonction qui n'existe pas encore.`,
+    phases: ['run'],
+  },
+  {
+    match: /^TypeError: ([\w.]+)\(\) missing \d+ required positional arguments?: (.+)$/m,
+    say: (m) =>
+      `« ${m[1]}() » a été appelée sans tous ses arguments obligatoires, il manque : ${m[2]}. Compare sa signature à celle du contrat.`,
+    phases: ['run'],
+  },
+  {
+    match: /^TypeError: ([\w.]+)\(\) takes (\d+) positional arguments? but (\d+) (?:was|were) given/m,
+    say: (m) =>
+      `« ${m[1]}() » accepte ${m[2]} argument(s) positionnel(s) mais en a reçu ${m[3]}. Compare sa signature à celle du contrat.`,
+    phases: ['run'],
+  },
+  {
+    match: /^TypeError: 'NoneType' object is not subscriptable/m,
+    say: () =>
+      `Une valeur vaut None là où on lit un élément avec [ ]. En Python, une fonction qui se termine sans « return » renvoie None.`,
+    phases: ['run'],
+  },
+  {
+    match: /^KeyError: ['"]?([^'"\n]+)['"]?$/m,
+    say: (m) => `La clé « ${m[1]} » est absente du dictionnaire lu.`,
+    phases: ['run'],
+  },
+  {
+    match: /^(SyntaxError|IndentationError|TabError): ([^\n]+)$/m,
+    say: (m) =>
+      `Le fichier n'est pas du Python valide (${m[1]} : ${m[2]}) : il n'a pas pu être importé, aucun de ses tests n'a donc été exécuté.`,
+    phases: ['collect'],
+  },
 ]
 
 /**

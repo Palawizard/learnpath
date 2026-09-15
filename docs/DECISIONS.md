@@ -1270,3 +1270,96 @@ fichier coûteux.
 Le `state.json` disparaît bien : aucun parcours conservé ne redevient actif tout seul. Le
 message final donne son chemin et demande une réimportation explicite. Aucun autre fichier,
 même placé dans `.learn/parcours/`, n'est conservé.
+
+---
+
+## D39 — Python : pytest comme deuxième runner, derrière le même `RawResult`
+
+**Contexte.** « pytest, pour ouvrir à Python » était la première priorité après le v1
+(`IMPLEMENTATION_PLAN.md`). Tout le produit repose sur une chaîne runner → `RawResult` →
+`classify` → UI, et sur des garanties (D3, D5, D14, D21, D25, règle 3) écrites pour Vitest.
+La question n'était pas « lancer pytest » mais « tenir les mêmes garanties en Python ».
+
+**Décision.** `runner.kind` admet `"pytest"`. Un seul aiguillage, `src/runner/run-tests.ts`,
+branché là où `run` de Vitest l'était (`verify.ts`, `progression.ts`). Tout ce qui est en
+aval — `classify`, `humanize`, view model, panneau, git, reprise d'étape — reste commun.
+
+### Le rapport : JUnit XML natif, lu sans dépendance
+
+pytest n'a pas de reporter JSON intégré ; `pytest-json-report` serait un paquet de plus à
+installer chez l'utilisateur, et un plugin maison dans `.learn/` dépendrait du chargement des
+`conftest.py`, qui varie selon les versions. `--junitxml` existe depuis toujours et ne
+demande rien. Le format étant produit par pytest (pas de CDATA, `<testcase>` à plat),
+`src/runner/junit.ts` le lit par expressions régulières plutôt qu'avec un parseur XML en
+dépendance runtime (règle 7). Il retourne le même `RawResult` que `parse.ts`.
+
+### Le filtre : le fichier, pas le nom
+
+Vitest filtre avec `-t "step <id>"` sur le nom du `describe`. pytest n'a pas de `describe`, et
+`-k` ne tolère ni espace ni point. L'étape Python **est son fichier** : on passe les fichiers
+des étapes jouées, et `runPytest` préfixe chaque test par `step <id> › ` d'après le fichier
+dont il vient. `classify` n'a donc pas de cas Python pour rattacher un test à une étape.
+`tests.grep` reste exigé (`step <id>`) : un seul format, un seul schéma.
+
+Conséquence imposée : le fichier de test doit être un **nom de module Python** (`test_step_1_1.py`).
+pytest l'importe comme module, et une erreur de collecte n'est rapportée que sous son nom
+pointé (`.learn.tests.test_step_1_1`) — un point dans le nom rendrait la correspondance
+ambiguë. `parcours.ts` refuse le reste en proposant le bon nom.
+
+### L'isolement (D3, D25, règle 3)
+
+- `-c .learn/pytest.ini` : pytest ne lit que ce fichier. Vérifié par un vrai run : un
+  `pytest.ini` du projet avec un `addopts` invalide et un `conftest.py` qui lève à la racine
+  n'empêchent ni l'import ni les runs — la recherche des conftest s'arrête au dossier de
+  l'ini. `PYTEST_ADDOPTS` est retiré de l'environnement du processus.
+- `pythonpath = ..` dans l'ini : **relatif au dossier de l'ini**, mesuré, pas au `rootdir`.
+- `-p no:cacheprovider` et `PYTHONDONTWRITEBYTECODE=1` : sans eux, chaque run écrit
+  `.pytest_cache/` et `__pycache__/` **à côté du code de l'utilisateur**. Plutôt que de les
+  enfermer dans `.learn/` comme le cache de Vite, on ne les écrit pas du tout : rien à
+  ignorer, rien à nettoyer.
+
+### La collecte : le piège qui aurait tout rendu rouge
+
+1. **pytest interrompt la session** à la première erreur de collecte. Or une étape pas
+   commencée est une erreur de collecte : les étapes précédentes n'étaient plus exécutées et
+   passaient pour des régressions. `--continue-on-collection-errors` est obligatoire.
+2. **`from panier import ajouter_article` échoue à la collecte** dès que `panier.py` existe
+   sans la fonction (`cannot import name`), là où JavaScript échoue à l'exécution
+   (`is not a function`). Sans traitement, chaque étape après la première commençait par
+   « le fichier n'est pas encore valide ». `classify` range donc `No module named '<m>'` et
+   `cannot import name '<n>' from '<m>'` en `missing-file` **quand `<m>` correspond à un
+   fichier de `expected.files` de l'étape** — même règle que pour les modules JS, même
+   tolérance que pour les alias. Un import circulaire (« partially initialized module ») ou
+   un paquet tiers absent reste une vraie erreur.
+
+### L'interpréteur, et le setup
+
+Ordre : `.venv/` puis `venv/` du projet, `VIRTUAL_ENV`, puis le Python du PATH (sans les alias
+`WindowsApps` du Microsoft Store, qui existent sur le disque et ouvrent le Store). Dans le bac
+à sable de `verifyAllGreen`, qui ne copie pas `.venv` (D26), l'interpréteur est cherché dans le
+vrai projet (`projectRoot`).
+
+Liste blanche du setup **par runner** (D8) : `pip`, `pip3`, `uv`, `poetry`, et `python` limité à
+`-m venv <dossier>` (chemin validé par `safeResolve`) et `-m pip …` — `python` seul exécute
+n'importe quoi. `pip` du parcours s'exécute en `<python du projet> -m pip` : le `pip` du PATH
+installerait dans un autre Python que celui des tests, et un Python système récent refuse
+(PEP 668). `python -m venv` part du Python système — recréer un venv avec son propre
+interpréteur échoue sous Windows — et n'est pas rejoué si l'environnement existe.
+
+**Vérifié.** Fixtures JUnit réelles (`src/runner/__fixtures__/pytest/`, pytest 9.1.1), et de
+vrais runs dans `src/runner/pytest.test.ts` : import complet de l'exemple (rouge puis
+solutions vertes), boucle de jeu jusqu'à l'étape 1.3 avec régression, config du projet
+ignorée, paquet `app/panier.py`, solution régressive refusée, aucun cache écrit. Hors suite,
+un import avec le vrai setup (`python -m venv .venv`, `pip install pytest`) puis un
+réimport qui ne recrée pas le venv. La CI installe pytest et pose
+`LEARNPATH_REQUIRE_PYTEST=1` pour que ces tests ne soient jamais sautés en silence.
+
+**Ce qui n'est pas fait.**
+- `humanize` ne découpe pas `assert a == b` en « obtenu / attendu » : rien n'y dit lequel est
+  l'attendu (règle 3 de `humanize`).
+- Pas de réglage `learnpath.pythonPath` : l'ordre ci-dessus couvre les cas mesurés. À ajouter
+  sur un vrai cas (conda, pyenv sans venv…), en le passant de `extension.ts` au noyau.
+- Les plugins pytest installés dans l'environnement restent chargés (autoload) : les couper
+  casserait `pytest-asyncio` pour un parcours qui en a besoin. Un plugin qui exige sa config
+  (pytest-django) cassera les runs ; à traiter s'il remonte.
+- `runner.cwd` différent de `.` n'est pas plus essayé en vrai côté Python que côté Vitest.

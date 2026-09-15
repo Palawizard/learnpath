@@ -4,13 +4,16 @@ import { type Result, ok, err } from './result.js'
 import { safeResolve } from './paths.js'
 import { validateCommand } from './validate-commands.js'
 
+/** La commande de chaque runner est construite par l'extension (D14, D39). */
+export type RunnerKind = 'vitest' | 'pytest'
+
 export interface Runner {
-  /** Seule valeur admise pour l'instant. La commande est construite par l'extension, D14. */
-  readonly kind: 'vitest'
+  readonly kind: RunnerKind
   readonly cwd?: string
   /**
-   * Environnement de test (D31). Absent = déduit : « node », sauf si `setup` installe
-   * jsdom ou happy-dom. Un parcours qui teste un composant doit le déclarer.
+   * Environnement de test Vitest (D31). Absent = déduit : « node », sauf si `setup` installe
+   * jsdom ou happy-dom. Un parcours qui teste un composant doit le déclarer. Refusé avec
+   * pytest, où il ne veut rien dire.
    */
   readonly environment?: 'node' | 'jsdom' | 'happy-dom' | 'edge-runtime'
   readonly setup?: readonly string[]
@@ -95,12 +98,19 @@ export function loadParcours(raw: unknown): Result<Parcours, ValidationError[]> 
 function checkSemantics(parcours: Parcours): ValidationError[] {
   const errors: ValidationError[] = []
 
+  const kind = parcours.runner.kind
   parcours.runner.setup?.forEach((cmd, i) => {
-    const r = validateCommand(cmd)
+    const r = validateCommand(cmd, kind)
     if (!r.ok) {
       errors.push({ path: `/runner/setup/${i}`, message: `Runner, setup[${i}] : ${r.error}` })
     }
   })
+  if (kind === 'pytest' && parcours.runner.environment !== undefined) {
+    errors.push({
+      path: '/runner/environment',
+      message: `Runner, champ environment : il ne s'applique qu'à Vitest (jsdom, happy-dom…), retire-le d'un parcours pytest`,
+    })
+  }
   // « . » désigne la racine du projet, seul cas où on accepte la racine elle-même.
   if (parcours.runner.cwd !== undefined) {
     const r = safeResolve(VALIDATION_ROOT, parcours.runner.cwd, { allowRoot: true })
@@ -124,14 +134,25 @@ function checkSemantics(parcours: Parcours): ValidationError[] {
     }
 
     // Vitest filtre sur le nom complet du test, `describe` inclus : le grep doit donc
-    // reprendre « step <id> », sinon le filtre attrape zéro ou trop de tests.
+    // reprendre « step <id> », sinon le filtre attrape zéro ou trop de tests. pytest filtre
+    // par fichier ; le champ y reste exigé, pour qu'un parcours ait la même forme partout.
     const expectedGrep = `step ${step.id}`
     if (step.tests.grep.trim() === '') {
       errors.push({ path: `/steps/${i}/tests/grep`, message: `${at} : le champ tests.grep est vide` })
     } else if (!step.tests.grep.includes(expectedGrep)) {
       errors.push({
         path: `/steps/${i}/tests/grep`,
-        message: `${at} : le champ tests.grep vaut « ${step.tests.grep} » mais doit contenir « ${expectedGrep} » pour que le filtre de Vitest cible cette étape`,
+        message: `${at} : le champ tests.grep vaut « ${step.tests.grep} » mais doit contenir « ${expectedGrep} »${kind === 'vitest' ? ' pour que le filtre de Vitest cible cette étape' : ''}`,
+      })
+    }
+
+    // pytest importe chaque fichier de test comme un module : « step-1.1.py » n'est pas un
+    // nom de module, et un point dans le nom casse aussi la relecture du rapport JUnit.
+    const base = step.tests.file.split('/').pop() ?? ''
+    if (kind === 'pytest' && !/^[A-Za-z_][A-Za-z0-9_]*\.py$/.test(base)) {
+      errors.push({
+        path: `/steps/${i}/tests/file`,
+        message: `${at} : avec pytest, le fichier de test doit être un module Python : « ${base} » ne l'est pas, écris par exemple « test_step_${step.id.replace(/[^A-Za-z0-9_]/g, '_')}.py » (lettres, chiffres et _ seulement, extension .py)`,
       })
     }
 

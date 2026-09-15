@@ -55,8 +55,11 @@ export function launcher(binary: string, args: readonly string[]): Launch {
 /** Le message à donner quand `launcher` n'a rien trouvé : diagnostic complet, puis l'issue. */
 export function notFoundMessage(command: string, launch: Launch): string {
   const binary = command.trim().split(/\s+/)[0] ?? ''
+  const why = PYTHON_FAMILY.has(binary)
+    ? `Aucun interpréteur Python n'a été trouvé depuis VSCode pour « ${binary} » : ni environnement virtuel dans le projet (.venv, venv), ni VIRTUAL_ENV, ni python3 ou python dans le PATH de l'hôte d'extension.`
+    : `« ${binary} » est introuvable depuis VSCode. L'hôte d'extension n'a pas le PATH de ton terminal : c'est le cas courant avec nvm, fnm ou volta.`
   return [
-    `« ${binary} » est introuvable depuis VSCode. L'hôte d'extension n'a pas le PATH de ton terminal : c'est le cas courant avec nvm, fnm ou volta.`,
+    why,
     `Lance la commande toi-même dans un terminal, à la racine du projet :`,
     `    ${command}`,
     `puis relance l'import avec un setup vide ("setup": []) dans le fichier de parcours.`,
@@ -92,6 +95,90 @@ function onPath(name: string): readonly string[] {
 
 function firstExisting(candidates: readonly string[]): string | undefined {
   return candidates.find((candidate) => fs.existsSync(candidate))
+}
+
+// --- Python (D39) ---------------------------------------------------------------------
+
+/** Commandes de setup qui s'exécutent avec l'interpréteur Python du projet. */
+const PYTHON_FAMILY: ReadonlySet<string> = new Set(['python', 'python3', 'pip', 'pip3'])
+
+/** Environnements virtuels reconnus dans le projet, dans l'ordre. */
+const VENV_DIRS = ['.venv', 'venv'] as const
+
+export function venvPython(venv: string): string {
+  return process.platform === 'win32'
+    ? path.join(venv, 'Scripts', 'python.exe')
+    : path.join(venv, 'bin', 'python')
+}
+
+/**
+ * L'interpréteur Python qui fait tourner les tests. Ordre : l'environnement virtuel du
+ * projet (le premier dossier de `dirs` qui en a un), celui qui est activé (`VIRTUAL_ENV`),
+ * puis le Python du système. C'est l'ordre dans lequel un développeur Python s'attend à
+ * voir son code exécuté : un pytest installé dans `.venv` ne sert à rien si on lance celui
+ * du système.
+ */
+export function pythonFor(dirs: readonly string[]): Launch {
+  const tried: string[] = []
+  const found = (candidates: readonly string[]): string | undefined => {
+    tried.push(...candidates)
+    return firstExisting(candidates)
+  }
+
+  const local = found([...new Set(dirs)].flatMap((dir) => VENV_DIRS.map((venv) => venvPython(path.join(dir, venv)))))
+  if (local !== undefined) return { file: local, args: [], tried, resolved: true }
+
+  const active = process.env['VIRTUAL_ENV']
+  const activated = active === undefined || active === '' ? undefined : found([venvPython(active)])
+  if (activated !== undefined) return { file: activated, args: [], tried, resolved: true }
+
+  const system = systemPython(tried)
+  return system === undefined
+    ? { file: 'python3', args: [], tried, resolved: false }
+    : { file: system, args: [], tried, resolved: true }
+}
+
+/**
+ * Le Python du PATH. Sous Windows, les alias `WindowsApps\python.exe` existent sur le disque
+ * mais ouvrent le Microsoft Store au lieu de lancer quoi que ce soit : on les écarte.
+ */
+function systemPython(tried: string[]): string | undefined {
+  const names = process.platform === 'win32' ? ['python.exe', 'py.exe'] : ['python3', 'python']
+  const candidates = names.flatMap(onPath).filter((candidate) => !/[\\/]WindowsApps[\\/]/i.test(candidate))
+  tried.push(...candidates)
+  return firstExisting(candidates)
+}
+
+/**
+ * Comment lancer une commande de `runner.setup`, déjà validée par `validateCommand`.
+ *
+ * - `pip …` devient `<python du projet> -m pip …` : le `pip` du PATH installerait dans un
+ *   autre Python que celui qui lance les tests ;
+ * - `python -m venv <dossier>` part du Python **du système** — recréer un venv avec son
+ *   propre interpréteur échoue sous Windows — et n'est pas rejoué si l'environnement existe
+ *   déjà : un réimport ne doit pas reconstruire un venv plein de paquets ;
+ * - le reste (`npm`, `uv`, `poetry`…) passe par `launcher`.
+ */
+export function setupLauncher(command: string, cwd: string): Launch & { readonly skip?: string } {
+  const [binary = '', ...args] = command.trim().split(/\s+/)
+  if (binary === 'pip' || binary === 'pip3') {
+    const python = pythonFor([cwd])
+    return { ...python, args: [...python.args, '-m', 'pip', ...args] }
+  }
+  if (binary === 'python' || binary === 'python3') {
+    if (args[0] === '-m' && args[1] === 'venv') {
+      const target = args.slice(2).find((arg) => !arg.startsWith('-'))
+      if (target !== undefined && fs.existsSync(venvPython(path.resolve(cwd, target)))) {
+        return { file: binary, args, tried: [], resolved: true, skip: `L'environnement ${target} existe déjà : « ${command} » n'est pas rejouée.` }
+      }
+      const tried: string[] = []
+      const system = systemPython(tried)
+      return { file: system ?? binary, args, tried, resolved: system !== undefined }
+    }
+    const python = pythonFor([cwd])
+    return { ...python, args: [...python.args, ...args] }
+  }
+  return launcher(binary, args)
 }
 
 /**
