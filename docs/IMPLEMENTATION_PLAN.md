@@ -143,10 +143,31 @@ projet qui a déjà Vitest.
 
 ---
 
+## Lot 8 — Python (pytest)
+
+**But** : jouer un parcours Python avec la même boucle, les mêmes garanties et la même
+interface que les parcours Vitest (D39).
+
+- `runner.kind: "pytest"` dans le schéma ; `environment` refusé, nom de fichier de test
+  imposé (module Python), liste blanche de `setup` propre à l'écosystème
+- `src/runner/pytest.ts` + `junit.ts` : argv construit, config isolée `.learn/pytest.ini`,
+  rapport JUnit XML natif, fixtures réelles dans `src/runner/__fixtures__/pytest/`
+- `src/runner/run-tests.ts` : l'aiguillage unique, branché dans `verify.ts` et
+  `progression.ts`
+- Résolution de l'interpréteur (`.venv`, `venv`, `VIRTUAL_ENV`, PATH) et exécution de
+  `pip`/`python -m venv` avec le bon Python
+- `classify`, `humanize` : formes pytest (`No module named`, `cannot import name`…)
+- Prompt de génération, bandeau du formulaire, exemple `exemple-panier-python.json`, CI
+
+**Fait**, vrais runs pytest compris. Reste la vérification à l'écran : points 85 à 96 de
+`MANUAL-QA.md`.
+
+---
+
 ## Après le v1
 
 Dans cet ordre de priorité présumé, à revalider avec de vrais utilisateurs :
 
-1. pytest, pour ouvrir à Python
+1. ~~pytest, pour ouvrir à Python~~ — fait au lot 8 (D39)
 2. Un générateur intégré optionnel, via CLI locale en sous-processus
 3. Parcours multiples et historique

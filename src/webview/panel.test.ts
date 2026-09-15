@@ -468,7 +468,7 @@ describe('renderStatus — run en cours et traduction des erreurs', () => {
       })
     )
     expect(html).toContain('class="explained"')
-    expect(html).toContain('Message brut de Vitest')
+    expect(html).toContain('Message brut du runner de tests')
     expect(html).toContain('__vite_ssr_import_1__')
   })
 

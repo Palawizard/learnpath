@@ -183,6 +183,26 @@ validé au moins deux étapes.
 | 72 | Projet git avec un arbre **sale au moment de l'import** | Idem : indisponible avec l'explication, et la vue Sortie porte la raison dès l'import |
 | 73 | `learnpath.gitCheckpoints` à `false` | Aucun commit n'est créé, et l'encadré nomme l'option. Repasser l'option à `true` sur un parcours importé sans base : toujours indisponible, avec l'invitation à réimporter |
 
+## Parcours Python (pytest, D39)
+
+Dossier vide (sans `package.json`), avec Python 3 installé. Importer
+`examples/exemple-panier-python.json` (ou ouvrir `examples/demo-project-python`).
+
+| # | Point | Attendu |
+|---|---|---|
+| 85 | Le dialogue de setup | Montre exactement `python -m venv .venv` puis `pip install pytest` |
+| 86 | Après confirmation, la vue Sortie | Montre la création du venv puis l'installation de pytest **dans `.venv`** (le chemin `.venv/bin/python -m pip` ou `.venv\Scripts\python.exe`), pas dans le Python du système |
+| 87 | Réimporter après « Supprimer le parcours » | La vue Sortie dit « L'environnement .venv existe déjà » et ne recrée pas le venv |
+| 88 | L'étape 1 avant d'écrire `panier.py` | Aucune erreur affichée : état normal de début d'étape |
+| 89 | Écrire `def creer_panier(:` et sauvegarder | Indicateur discret « pas encore valide », traduction « n'est pas du Python valide (SyntaxError…) » |
+| 90 | Écrire une version fausse (`"lignes": [1]`) | Test en échec nommé `step 1.1 › test_lignes_vides_et_aucune_promo`, message `assert [1] == []` visible |
+| 91 | Coller la solution de 1.1 et sauvegarder | Passage automatique à 1.2 |
+| 92 | L'étape 1.2 **avant** d'écrire `ajouter_article` | Aucune erreur affichée (c'est `cannot import name` sous le capot), pas de bandeau de régression |
+| 93 | Casser `creer_panier` pendant l'étape 1.2 | Bandeau de régression sur l'étape 1.1, séparé de l'état de 1.2 |
+| 94 | Après une dizaine de runs : l'arborescence du projet | Aucun `__pycache__` ni `.pytest_cache`, ni à la racine ni dans `.learn/` |
+| 95 | Un `pytest.ini` du projet avec `addopts = -x --inexistant` et un `conftest.py` qui lève | L'import et les runs marchent comme si ces fichiers n'existaient pas ; ils ne sont pas modifiés |
+| 96 | Windows : projet sans `.venv`, seul l'alias Microsoft Store de `python.exe` présent | Message « Aucun interpréteur Python n'a été trouvé », pas d'ouverture du Store ni de blocage |
+
 ---
 
 ## Quand c'est fini

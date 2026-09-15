@@ -32,8 +32,12 @@ code --install-extension Palawizard.learnpath
 codium --install-extension Palawizard.learnpath
 ```
 
-Il te faut un projet JavaScript ou TypeScript avec un `package.json`. Vitest est installé
-par l'extension au moment de l'import s'il n'est pas déjà là.
+Il te faut :
+
+- **un projet JavaScript ou TypeScript** avec un `package.json` — Vitest est installé par
+  l'extension au moment de l'import s'il n'est pas déjà là ;
+- **ou un projet Python**, avec Python 3 installé — pytest est installé à l'import dans
+  l'environnement virtuel du projet (`.venv`), créé s'il n'existe pas.
 
 ## De « je veux coder cette fonctionnalité » à la première étape
 
@@ -46,7 +50,8 @@ par l'extension au moment de l'import s'il n'est pas déjà là.
    et choisis le fichier. (Par la palette de commandes, `Ctrl+Shift+P` / `Cmd+Shift+P` →
    **LearnPath : Importer un parcours…**, ça marche aussi.)
 4. **Confirme l'installation.** L'extension te montre la commande exacte qu'elle veut
-   lancer (`npm i -D vitest` en général) et attend ton accord. Rien ne se lance sans lui.
+   lancer (`npm i -D vitest` en général, ou `python -m venv .venv` puis `pip install pytest`
+   pour un projet Python) et attend ton accord. Rien ne se lance sans lui.
 5. **Attends la vérification.** L'extension joue elle-même le parcours entier dans une
    copie temporaire de ton projet : chaque étape doit être rouge au départ, et chaque
    solution doit rendre vertes toutes les étapes jouées jusque-là. Un parcours bancal est
@@ -95,11 +100,15 @@ Tout tient dans un dossier, plus deux lignes de `.gitignore` :
 | Chemin | Quand | Contenu |
 |---|---|---|
 | `.learn/parcours/<slug>.json` | à l'import | le parcours tel que tu l'as importé |
-| `.learn/tests/step-*.spec.js` | à l'import | les tests des étapes |
-| `.learn/vitest.config.mts` | à l'import | une config Vitest isolée, qui ne lit que `.learn/tests/` ; elle hérite des plugins et alias de ton `vite.config.*` s'il existe, jamais de ta config de test |
+| `.learn/tests/step-*.spec.js` ou `test_step_*.py` | à l'import | les tests des étapes |
+| `.learn/vitest.config.mts` | à l'import, projet JS/TS | une config Vitest isolée, qui ne lit que `.learn/tests/` ; elle hérite des plugins et alias de ton `vite.config.*` s'il existe, jamais de ta config de test |
+| `.learn/pytest.ini` | à l'import, projet Python | une config pytest isolée : ta config pytest et ton `conftest.py` ne sont pas appliqués aux tests du parcours |
 | `.learn/state.json` | en continu | ta progression : étape en cours, indices vus, solutions révélées |
-| `.learn/.vite/` | pendant les runs | le cache de Vitest, jetable |
-| `.gitignore` | à l'import | deux lignes ajoutées sous un commentaire `# LearnPath` |
+| `.learn/.vite/` | pendant les runs, projet JS/TS | le cache de Vitest, jetable |
+| `.gitignore` | à l'import | une ou deux lignes ajoutées sous un commentaire `# LearnPath` |
+
+Avec pytest, aucun cache n'est écrit : ni `.pytest_cache`, ni `__pycache__` à côté de ton
+code.
 
 **Rien d'autre**, sauf deux choses que tu déclenches toi-même et qui sont décrites juste
 en dessous : les points de restauration git, et « Refaire l'étape ». Le bouton « Solution »
@@ -111,11 +120,13 @@ Et ce que l'extension **ne touche jamais** :
 - ton `vitest.config.*` et le champ `scripts.test` de ton `package.json` : jamais lus,
   jamais modifiés. LearnPath lance Vitest avec `--config .learn/vitest.config.mts`, ta
   suite de tests et la sienne s'ignorent dans les deux sens ;
+- ton `pytest.ini`, ton `pyproject.toml`, ton `setup.cfg`, ton `tox.ini` et ton
+  `conftest.py` : jamais lus ni modifiés, LearnPath lance pytest avec `-c .learn/pytest.ini` ;
 - ton code : **aucun de tes fichiers n'est écrit** sans que tu l'aies demandé étape par
   étape. Le bouton « Solution » n'écrit rien ; « Refaire l'étape » réécrit uniquement les
   fichiers déclarés par l'étape que tu as choisie, après une confirmation qui les nomme ;
 - ta branche git, tes commits, ton index : voir ci-dessous ;
-- ton `node_modules`, en dehors de l'installation de Vitest que tu as confirmée ;
+- ton `node_modules` ou ton `.venv`, en dehors de l'installation que tu as confirmée ;
 - le réseau.
 
 ## Refaire une étape déjà validée
@@ -189,9 +200,28 @@ le réimporter sans payer une nouvelle génération. Dans les deux cas, **le cod
 | `learnpath.autoAdvance` | `true` | passer à l'étape suivante automatiquement au vert |
 | `learnpath.gitCheckpoints` | `true` | enregistrer chaque étape validée sous `refs/learnpath/`, pour pouvoir refaire une étape. Désactivée : aucun commit, et « Refaire l'étape » est indisponible |
 
+## Projets Python
+
+Les parcours Python se jouent avec **pytest**, exactement comme les parcours JavaScript :
+mêmes étapes, mêmes indices, même vérification à l'import, même « Refaire l'étape ».
+
+- **Quel Python ?** Celui de l'environnement virtuel du projet (`.venv/`, puis `venv/`),
+  sinon celui de l'environnement activé (`VIRTUAL_ENV`), sinon `python3`/`python` du PATH.
+  Les commandes `pip` du setup s'exécutent avec ce Python-là, pas avec le `pip` du PATH.
+- **Les imports** se résolvent depuis la racine du projet : `panier.py` s'importe
+  `from panier import …`, `app/panier.py` s'importe `from app.panier import …`.
+- **Au début de chaque étape**, rien ne s'affiche tant que la fonction demandée n'existe pas
+  encore dans le module — même si le module existe déjà. Ça n'est pas une erreur.
+- Sous un Python « géré par le système » (Debian, Ubuntu, Arch…), `pip install` hors
+  environnement virtuel est refusé : c'est pour ça que le setup commence par créer `.venv`.
+
 ## Limites connues
 
-- **JavaScript / TypeScript et Vitest uniquement.** pytest est la prochaine cible.
+- **JavaScript / TypeScript avec Vitest, Python avec pytest.** Pas d'autre langage ni
+  d'autre runner.
+- Côté Python, la config pytest du projet (fixtures de `conftest.py`, plugins déclarés dans
+  `pyproject.toml`) n'est pas appliquée aux tests du parcours : chaque fichier de test doit
+  se suffire à lui-même. Les plugins pytest installés dans l'environnement restent chargés.
 - **Yarn Plug'n'Play n'est pas supporté** : passe le projet en `nodeLinker: node-modules`.
 - **Un parcours à la fois** par projet.
 - Un test qui dépasse son délai est signalé comme tel, mais Vitest ne transmet pas la

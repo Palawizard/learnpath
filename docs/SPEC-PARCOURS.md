@@ -1,7 +1,9 @@
 # Format de parcours — spécification v1
 
 Contrat entre le générateur (Claude Code / Codex, hors extension) et l'extension VSCode.
-Cible du prototype : JS/TS + Vitest, 5 à 10 étapes par fonctionnalité.
+Cibles : JS/TS + Vitest, et Python + pytest (D39). 5 à 10 étapes par fonctionnalité.
+Tout ce qui suit vaut pour les deux runners, sauf la section « Parcours pytest », qui dit
+ce qui change.
 
 ## Arborescence dans le projet de l'utilisateur
 
@@ -29,13 +31,14 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
   "intro": "Markdown. Ce qu'on va construire et pourquoi.",
 
   "runner": {
-    "kind": "vitest",            // seule valeur admise ; la commande est construite
-                                 // par l'extension, pas fournie par le parcours (D14)
+    "kind": "vitest",            // "vitest" | "pytest" ; la commande est construite
+                                 // par l'extension, pas fournie par le parcours (D14, D39)
     "cwd": ".",
-    "environment": "node",       // "node" | "jsdom" | "happy-dom" | "edge-runtime".
-                                 // Absent : déduit du setup (D31). Un parcours qui monte
-                                 // un composant a besoin de "jsdom".
-    "setup": ["npm i -D vitest"] // joué une seule fois à l'import, liste blanche (D8)
+    "environment": "node",       // Vitest seulement. "node" | "jsdom" | "happy-dom" |
+                                 // "edge-runtime". Absent : déduit du setup (D31). Un
+                                 // parcours qui monte un composant a besoin de "jsdom".
+    "setup": ["npm i -D vitest"] // joué une seule fois à l'import, liste blanche du
+                                 // runner (D8, D39)
   },
 
   "contract": {
@@ -144,6 +147,52 @@ sous `environment: 'node'` échoue sur `document is not defined`. Il vient donc 
 `runner.environment` ; à défaut, il est déduit de `setup` (installer `jsdom` ou
 `happy-dom`, c'est en avoir besoin), et vaut `node` sinon.
 
+## Parcours pytest
+
+`"runner": { "kind": "pytest", "cwd": ".", "setup": ["python -m venv .venv", "pip install pytest"] }`.
+Exemple complet : `examples/exemple-panier-python.json`. Raisonnement : D39.
+
+**Ce qui change par rapport à Vitest :**
+
+| | Vitest | pytest |
+|---|---|---|
+| Fichier de test | `.learn/tests/step-1.1.spec.js` | `.learn/tests/test_step_1_1.py` — un **nom de module Python** : lettres, chiffres, `_`, extension `.py`, ni point ni tiret (refusé à l'import sinon) |
+| Filtre d'une étape | `-t "step <id>"` sur le nom du `describe` | le **fichier** de l'étape ; les noms de test sont libres (`test_…`) |
+| `tests.grep` | `step <id>`, sert au filtre | `step <id>` aussi, exigé pour garder un format unique |
+| `environment` | selon le code testé | **refusé** |
+| `setup` admis | `npm`, `npx`, `pnpm`, `yarn` | `pip`, `pip3`, `uv`, `poetry`, et `python`/`python3` limités à `-m venv <dossier>` et `-m pip …` |
+| Config générée | `.learn/vitest.config.mts` | `.learn/pytest.ini` |
+
+**L'interpréteur.** Dans l'ordre : `.venv/` puis `venv/` du projet, l'environnement activé
+(`VIRTUAL_ENV`), puis `python3`/`python` du PATH (sous Windows `python.exe`, `py.exe`, sans
+les alias `WindowsApps` du Microsoft Store). `pip …` s'exécute en `<ce python> -m pip …` :
+le `pip` du PATH installerait ailleurs. `python -m venv <dossier>` part du Python du système
+et n'est pas rejoué si l'environnement existe déjà.
+
+**La config pytest écrite par l'extension.** `.learn/pytest.ini` est passée avec `-c`.
+pytest ne lit alors **que** elle : ni `pytest.ini`, ni `pyproject.toml`, ni `setup.cfg`, ni
+`tox.ini` du projet, et le `conftest.py` de la racine n'est pas chargé. Elle ne contient que
+`pythonpath = ..` : le code du projet s'importe depuis la racine (`panier.py` →
+`from panier import …`, `app/panier.py` → `from app.panier import …`). Chaque fichier de
+test se suffit donc à lui-même, fixtures comprises.
+
+**La commande :**
+`<python> -m pytest -c .learn/pytest.ini --rootdir=<projet> -p no:cacheprovider --continue-on-collection-errors -q --tb=short --junitxml=<temporaire> <fichiers de test des étapes jouées>`,
+avec `PYTHONDONTWRITEBYTECODE=1` et sans `PYTEST_ADDOPTS`. Aucun `.pytest_cache` ni
+`__pycache__` n'est écrit dans le projet.
+
+**Les trois états rouges en Python :**
+
+| Cause | Signal pytest | Ce qu'on affiche |
+|---|---|---|
+| Fichier pas encore créé | `No module named '<module>'` à la collecte | rien, état normal de début d'étape |
+| Fonction de l'étape pas encore écrite dans un module existant | `cannot import name '<nom>' from '<module>'` à la collecte | rien non plus : c'est le début normal de chaque étape après la première |
+| Code en cours d'écriture | `SyntaxError`, `IndentationError` à la collecte | indicateur discret, pas d'erreur rouge |
+| Test réellement en échec | `<failure>` : `assert …`, `AttributeError`, `TypeError`… | le message + traduction quand la forme est connue |
+
+Le module doit correspondre à un fichier de `expected.files` de l'étape : un
+`No module named 'requests'` reste une vraie erreur.
+
 ## Validation à l'import (côté extension)
 
 C'est le garde-fou le plus important, il attrape les parcours bidons :
@@ -173,6 +222,8 @@ C'est le garde-fou le plus important, il attrape les parcours bidons :
   `npx vitest run --config .learn/vitest.config.mts --reporter=json --outputFile=<temporaire>`.
 - Filtre `-t "step <id>"`, plus les ids précédents en régression. Vitest interprète `-t`
   comme une expression régulière : les ids sont échappés et joints par `|`.
+- Avec pytest : les fichiers de test de l'étape courante et des précédentes sont passés en
+  argument, rapport en `--junitxml` (voir « Parcours pytest »).
 - Parser le fichier de sortie, pas stdout. Il est écrit dans un temporaire propre à chaque
   run, jamais dans un chemin fixe partagé.
 

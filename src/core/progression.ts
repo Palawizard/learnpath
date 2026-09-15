@@ -6,7 +6,7 @@ import { type Parcours, type Step, loadParcours } from './parcours.js'
 import { type ParcoursState, advanceTo, complete, readState, writeState } from './state.js'
 import { type Classification, classify } from '../runner/classify.js'
 import type { RawResult } from '../runner/parse.js'
-import { run } from '../runner/vitest.js'
+import { runTests } from '../runner/run-tests.js'
 import { recordCheckpoint } from './redo.js'
 
 /**
@@ -168,7 +168,8 @@ export async function runCurrentStep(
   }
 
   const played = steps.slice(0, index + 1)
-  const execute = options.execute ?? run
+  const execute: Execute =
+    options.execute ?? ((root, ids, runOptions) => runTests(session.parcours, root, ids, runOptions))
   const raw = await execute(
     session.root,
     played.map((s) => s.id),

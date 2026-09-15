@@ -30,7 +30,7 @@
       "additionalProperties": false,
       "required": ["kind"],
       "properties": {
-        "kind": { "enum": ["vitest"] },
+        "kind": { "enum": ["vitest", "pytest"] },
         "cwd": { "type": "string", "minLength": 1 },
         "environment": { "enum": ["node", "jsdom", "happy-dom", "edge-runtime"] },
         "setup": {

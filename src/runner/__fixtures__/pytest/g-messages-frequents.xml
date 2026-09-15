@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="7" time="0.020" timestamp="2026-09-15T09:43:36.793896+02:00" hostname="PalaArch"><testcase classname=".learn.tests.test_step_2_1" name="test_attribut_absent" time="0.000"><failure message="AttributeError: module 'panier' has no attribute 'total'">.learn/tests/test_step_2_1.py:5: in test_attribut_absent
+    assert panier.total({}) == 0
+           ^^^^^^^^^^^^
+E   AttributeError: module 'panier' has no attribute 'total'</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_trop_d_arguments" time="0.000"><failure message="TypeError: creer_panier() takes 0 positional arguments but 1 was given">.learn/tests/test_step_2_1.py:9: in test_trop_d_arguments
+    assert panier.creer_panier(1) == {}
+           ^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: creer_panier() takes 0 positional arguments but 1 was given</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_argument_manquant" time="0.000"><failure message="TypeError: deux() missing 1 required positional argument: 'b'">.learn/tests/test_step_2_1.py:13: in test_argument_manquant
+    assert panier.deux(1) == 2
+           ^^^^^^^^^^^^^^
+E   TypeError: deux() missing 1 required positional argument: 'b'</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_cle_absente" time="0.000"><failure message="KeyError: 'articles'">.learn/tests/test_step_2_1.py:17: in test_cle_absente
+    assert panier.creer_panier()["articles"] == []
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'articles'</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_none" time="0.000"><failure message="TypeError: 'NoneType' object is not subscriptable">.learn/tests/test_step_2_1.py:21: in test_none
+    assert panier.rien()["lignes"] == []
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_nom_inconnu" time="0.000"><failure message="NameError: name 'inconnu' is not defined">.learn/tests/test_step_2_1.py:25: in test_nom_inconnu
+    assert panier.casse() == 1
+           ^^^^^^^^^^^^^^
+panier.py:10: in casse
+    return inconnu
+           ^^^^^^^
+E   NameError: name 'inconnu' is not defined</failure></testcase><testcase classname=".learn.tests.test_step_2_1" name="test_egalite" time="0.000"><failure message="AssertionError: assert {'lignes': [], 'promo': None} == {'lignes': [], 'promo': 'X'}&#10;  &#10;  Omitting 1 identical items, use -vv to show&#10;  Differing items:&#10;  {'promo': None} != {'promo': 'X'}&#10;  Use -v to get more diff">.learn/tests/test_step_2_1.py:29: in test_egalite
+    assert panier.creer_panier() == {"lignes": [], "promo": "X"}
+E   AssertionError: assert {'lignes': [], 'promo': None} == {'lignes': [], 'promo': 'X'}
+E     
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'promo': None} != {'promo': 'X'}
+E     Use -v to get more diff</failure></testcase></testsuite></testsuites>

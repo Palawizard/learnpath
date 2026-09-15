@@ -50,6 +50,22 @@ export interface Classification {
 const CANNOT_FIND_MODULE =
   /Cannot find (?:module|package) ['"]([^'"]+)['"]|Failed to resolve import ['"]([^'"]+)['"]/
 
+/**
+ * La même cause côté Python (D39), deux formulations vérifiées sur de vraies sorties de
+ * pytest (`__fixtures__/pytest/`) :
+ *
+ * - `No module named '<module>'` — le fichier du module n'existe pas encore ;
+ * - `cannot import name '<nom>' from '<module>'` — le fichier existe, mais pas encore ce que
+ *   l'étape y ajoute. En Python, un `from panier import total` échoue **à la collecte** là où
+ *   JavaScript donnerait un `total is not a function` à l'exécution : sans ça, chaque étape
+ *   après la première commencerait par « le fichier n'est pas encore valide ».
+ *
+ * Un import circulaire dit « from partially initialized module » et ne correspond pas : il
+ * reste une vraie erreur de collecte.
+ */
+const PYTHON_MISSING =
+  /No module named ['"]([^'"]+)['"]|cannot import name ['"]([^'"]+)['"] from ['"]([^'"]+)['"]/
+
 export function classify(raw: RawResult, step: Step): Classification {
   const assertions = raw.files.flatMap((file) => file.assertions).filter((a) => belongsTo(a, step))
 
@@ -75,6 +91,15 @@ export function classify(raw: RawResult, step: Step): Classification {
   if (missing !== undefined) {
     return expects(step, missing)
       ? { state: 'missing-file', failures: [], missing }
+      : { state: 'collect-error', message: file.message, failures: [] }
+  }
+
+  const python = PYTHON_MISSING.exec(file.message)
+  if (python !== null) {
+    const module = python[1] ?? python[3] ?? ''
+    const name = python[1] ?? `${module}.${python[2] ?? ''}`
+    return expectsModule(step, module)
+      ? { state: 'missing-file', failures: [], missing: name }
       : { state: 'collect-error', message: file.message, failures: [] }
   }
 
@@ -115,6 +140,21 @@ function expects(step: Step, specifier: string): boolean {
   const dir = path.posix.dirname(step.tests.file)
   const target = path.posix.normalize(path.posix.join(dir, specifier))
   return step.expected.files.some((file) => path.posix.normalize(file) === target)
+}
+
+/**
+ * Un module pointé (`app.panier`) contre les `expected.files` Python de l'étape
+ * (`app/panier.py`, `app/panier/__init__.py`). Les segments du module doivent se suivre dans
+ * ceux du fichier : ça accepte `src/app/panier.py` importé comme `app.panier`, et `app`
+ * seul quand c'est le paquet entier qui manque. Même tolérance, et même pire cas bénin, que
+ * pour les alias JavaScript ci-dessus.
+ */
+function expectsModule(step: Step, module: string): boolean {
+  return step.expected.files.some((file) => {
+    if (!file.endsWith('.py')) return false
+    const dotted = path.posix.normalize(file).replace(/(\/__init__)?\.py$/, '').split('/').join('.')
+    return `.${dotted}.`.includes(`.${module}.`)
+  })
 }
 
 export function escapeRegex(value: string): string {

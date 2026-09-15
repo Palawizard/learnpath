@@ -10,12 +10,10 @@ import { humanize, phaseOf } from './humanize.js'
 import type { Parcours } from './parcours.js'
 import type { RawResult } from '../runner/parse.js'
 import { type Classification, type State, classify } from '../runner/classify.js'
-import { run } from '../runner/vitest.js'
+import { runTests } from '../runner/run-tests.js'
 
-/** Point d'injection des tests : par défaut, un vrai run Vitest sans filtre. */
+/** Point d'injection des tests : par défaut, un vrai run du runner du parcours, sans filtre. */
 export type RunAll = (root: ResolvedPath) => Promise<Result<RawResult>>
-
-const runAll: RunAll = (root) => run(root, [])
 
 /**
  * D5 : à l'import, on lance tous les tests sur le projet en l'état et on exige que
@@ -33,7 +31,7 @@ const runAll: RunAll = (root) => run(root, [])
 export async function verifyAllRed(
   parcours: Parcours,
   root: ResolvedPath,
-  execute: RunAll = runAll
+  execute: RunAll = (r) => runTests(parcours, r, [])
 ): Promise<Result<void>> {
   const result = await execute(root)
   if (!result.ok) {
@@ -110,7 +108,9 @@ export async function verifyAllGreen(
   root: ResolvedPath,
   hooks: GreenHooks = {}
 ): Promise<Result<void>> {
-  const execute = hooks.execute ?? ((r, ids) => run(r, ids))
+  // `projectRoot` : l'environnement Python est cherché dans le vrai projet, le bac à sable
+  // ne copie pas `.venv` (D26, D39).
+  const execute = hooks.execute ?? ((r, ids) => runTests(parcours, r, ids, { projectRoot: root }))
   const log = hooks.log ?? (() => undefined)
 
   const sandbox = await cloneWorkspace(root, log)
@@ -226,7 +226,7 @@ async function keepDiagnostic(
   )
   // La stderr du processus Vitest : une collecte cassée par la config ou par un plugin
   // n'écrit rien dans le rapport JSON, sa stack n'est que là.
-  if (raw.stderr.trim() !== '') sections.push(`--- sortie d'erreur de Vitest ---\n${raw.stderr.trim()}`)
+  if (raw.stderr.trim() !== '') sections.push(`--- sortie du processus de test ---\n${raw.stderr.trim()}`)
 
   const file = path.join(root, DIAGNOSTIC_LOG)
   try {

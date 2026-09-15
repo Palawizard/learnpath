@@ -296,7 +296,7 @@ function renderDetail(detail: string | undefined, explained: string | undefined)
   if (explained === undefined) return raw
   return [
     `<p class="explained">${escapeHtml(explained)}</p>`,
-    `<details class="raw"><summary>Message brut de Vitest</summary>${raw}</details>`,
+    `<details class="raw"><summary>Message brut du runner de tests</summary>${raw}</details>`,
   ].join('')
 }
 

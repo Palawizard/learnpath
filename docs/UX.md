@@ -72,10 +72,11 @@ Ce point n'est pas négociable. Un formulaire qui masque ce qu'on envoie retire 
 Ce qui est copié est le contenu de la zone, ses retouches comprises, et la copie passe par
 `vscode.env.clipboard` comme le bouton « Copier » de la solution.
 
-Si le dossier ouvert n'a pas de `package.json`, un bandeau le signale — LearnPath ne joue
-que des parcours Vitest — **sans rien bloquer** : le formulaire fonctionne, le prompt se
-compose. Un dossier peut très bien recevoir son `package.json` à l'étape suivante, et ce
-n'est pas à ce formulaire d'en décider.
+Si le dossier ouvert ne ressemble ni à un projet JavaScript (`package.json`) ni à un projet
+Python (`pyproject.toml`, `requirements.txt`, `setup.py`, `.venv`, `venv`), un bandeau le
+signale — LearnPath ne joue que des parcours Vitest ou pytest — **sans rien bloquer** : le
+formulaire fonctionne, le prompt se compose. Un dossier peut très bien devenir un projet à
+l'étape suivante, et ce n'est pas à ce formulaire d'en décider.
 
 ## Panneau du parcours
 
@@ -108,7 +109,8 @@ Segmentée, la barre et le compteur comptent la même chose.
 
 ## Un run en cours
 
-Entre la sauvegarde et le résultat il y a le debounce, puis une seconde de Vitest. Pendant
+Entre la sauvegarde et le résultat il y a le debounce, puis une seconde de Vitest ou de
+pytest. Pendant
 ce temps, ce qui est affiché date de la tentative précédente — et c'est souvent le rouge
 qu'on vient justement de corriger.
 
@@ -137,14 +139,21 @@ assertions en échec de l'étape. Le tableau décrit exactement ce que le code r
 
 ### Traduction des messages
 
-Les formes d'erreur Vitest fréquentes sont traduites en français (`src/core/humanize.ts`,
-D22). La traduction passe devant, **le message brut reste toujours accessible** juste en
+Les formes d'erreur Vitest et pytest fréquentes sont traduites en français
+(`src/core/humanize.ts`, D22, D39). Un `assert a == b` de pytest n'est **pas** découpé en
+« obtenu / attendu » : rien n'y dit lequel des deux est l'attendu. La traduction passe devant, **le message brut reste toujours accessible** juste en
 dessous, replié. Une forme non reconnue n'est ni masquée ni reformulée : elle s'affiche
 seule, telle quelle. On ne devine jamais l'intention.
 
 Règle de rendu : **`message` présent ⇒ on le montre**. Il porte aussi les erreurs qui ne
-sont pas de notre fait — un `Cannot find module 'lodash'` hors `expected.files` sort en
-`collect-error` avec son message, il n'est jamais avalé en « fichier pas encore créé ».
+sont pas de notre fait — un `Cannot find module 'lodash'` (ou `No module named 'requests'`)
+hors `expected.files` sort en `collect-error` avec son message, il n'est jamais avalé en
+« fichier pas encore créé ».
+
+En Python, une étape pas commencée ne dit pas toujours « fichier absent » : dès l'étape 2,
+le module existe et c'est `cannot import name '<fonction>' from '<module>'` qui sort, à la
+collecte. Tant que le module est un fichier attendu de l'étape, c'est affiché comme un début
+d'étape — rien — et pas comme « le fichier n'est pas encore valide » (D39).
 
 L'état s'appelait `parse-error` jusqu'à D33. Le nom affirmait une cause — le fichier ne
 *parse* pas — que rien ne permet de connaître : la collecte échoue aussi bien sur la config

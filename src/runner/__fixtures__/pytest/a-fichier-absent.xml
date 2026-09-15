@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="5" failures="0" skipped="0" tests="5" time="0.027" timestamp="2026-09-15T09:43:35.230112+02:00" hostname="PalaArch"><testcase classname="" name=".learn.tests.test_step_1_1" time="0.000"><error message="collection failure">ImportError while importing test module '/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/tests/test_step_1_1.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.learn/tests/test_step_1_1.py:1: in &lt;module&gt;
+    from panier import creer_panier
+E   ModuleNotFoundError: No module named 'panier'</error></testcase><testcase classname="" name=".learn.tests.test_step_1_2" time="0.000"><error message="collection failure">ImportError while importing test module '/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/tests/test_step_1_2.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.learn/tests/test_step_1_2.py:1: in &lt;module&gt;
+    from panier import ajouter_article, creer_panier
+E   ModuleNotFoundError: No module named 'panier'</error></testcase><testcase classname="" name=".learn.tests.test_step_1_3" time="0.000"><error message="collection failure">ImportError while importing test module '/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/tests/test_step_1_3.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.learn/tests/test_step_1_3.py:1: in &lt;module&gt;
+    from panier import ajouter_article, creer_panier, total
+E   ModuleNotFoundError: No module named 'panier'</error></testcase><testcase classname="" name=".learn.tests.test_step_1_4" time="0.000"><error message="collection failure">ImportError while importing test module '/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/tests/test_step_1_4.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.learn/tests/test_step_1_4.py:1: in &lt;module&gt;
+    from panier import PROMOS
+E   ModuleNotFoundError: No module named 'panier'</error></testcase><testcase classname="" name=".learn.tests.test_step_1_5" time="0.000"><error message="collection failure">ImportError while importing test module '/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/.learn/tests/test_step_1_5.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.learn/tests/test_step_1_5.py:1: in &lt;module&gt;
+    from panier import ajouter_article, appliquer_promo, creer_panier, total
+E   ModuleNotFoundError: No module named 'panier'</error></testcase></testsuite></testsuites>

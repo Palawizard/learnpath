@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.054" timestamp="2026-09-15T09:43:37.069558+02:00" hostname="PalaArch"><testcase classname="" name=".learn.tests.test_step_1_1" time="0.000"><error message="collection failure">../../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+../../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;frozen importlib._bootstrap&gt;:1406: in _gcd_import
+    ???
+&lt;frozen importlib._bootstrap&gt;:1371: in _find_and_load
+    ???
+&lt;frozen importlib._bootstrap&gt;:1342: in _find_and_load_unlocked
+    ???
+&lt;frozen importlib._bootstrap&gt;:938: in _load_unlocked
+    ???
+../../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:179: in exec_module
+    source_stat, co = _rewrite_test(fn, self.config)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../venv/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:348: in _rewrite_test
+    tree = ast.parse(source, filename=strfn)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/ast.py:46: in parse
+    return compile(source, filename, mode, flags,
+E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/h/.learn/tests/test_step_1_1.py", line 2
+E       assert True
+E       ^^^^^^
+E   IndentationError: expected an indented block after function definition on line 1</error></testcase></testsuite></testsuites>
