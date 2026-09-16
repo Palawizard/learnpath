@@ -32,7 +32,7 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 | `prompt.ts` | Compose le prompt de génération depuis le gabarit unique `prompts/generer-parcours.md`, qui lui est passé en argument (D37) |
 | `humanize.ts` | Traduction des formes d'erreur Vitest fréquentes, sans jamais masquer le brut (D22) |
 | `state.ts` | Lecture/écriture de `.learn/state.json`, progression, solutions révélées |
-| `progression.ts` | Session, filtrage des sauvegardes, quel run lancer, quoi faire du résultat, `RunLoop` (debounce et annulation) |
+| `progression.ts` | Session (parcours actif désigné par le slug de `state.json`, D44), filtrage des sauvegardes, quel run lancer, quoi faire du résultat, `RunLoop` (debounce et annulation) |
 | `finish.ts` | Fin de parcours : déplacement proposé de `.learn/tests/` (D17) |
 | `paths.ts` | Résolution et **validation de sécurité** des chemins du parcours |
 | `exec.ts` | Lancement des CLI sans shell, y compris sous Windows (D18, D24) ; résolution du CLI Vitest et refus explicite de Yarn PnP ; résolution de l'interpréteur Python et des commandes de setup Python (D39) |

@@ -193,6 +193,11 @@ et les caches. Dans ce second cas, le JSON généré reste dans `.learn/parcours
 le réimporter sans payer une nouvelle génération. Dans les deux cas, **le code que tu as
 écrit n'est pas touché**.
 
+**Une série de parcours** (une fonctionnalité découpée en « 1-… », « 2-… », « 3-… ») peut
+vivre entière dans `.learn/parcours/`. Seul le parcours en cours compte : finis le premier,
+**Réinitialiser → Supprimer le parcours**, puis importe le suivant depuis le même dossier.
+Les autres fichiers ne gênent rien et ne sont jamais modifiés.
+
 ## Commandes
 
 | Commande | Ce qu'elle fait |

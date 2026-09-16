@@ -7,6 +7,7 @@ import { writeFileAtomic } from './atomic.js'
 import { notFoundMessage, setupLauncher } from './exec.js'
 import type { Parcours } from './parcours.js'
 import { createState, writeState } from './state.js'
+import { activeSlug } from './progression.js'
 import { type RunAll, type RunSteps, verifyAllRed, verifyAllGreen } from './verify.js'
 import { checkpointStart, writeBaseRef } from './redo.js'
 import { PYTEST_CONFIG } from '../runner/pytest.js'
@@ -65,7 +66,7 @@ export async function importParcours(
   const checkpoint = await checkpointStart(paths.value.root, parcours, hooks.gitCheckpoints ?? true)
 
   const learnExisted = await exists(paths.value.learnDir)
-  const conflict = await findSlugConflict(paths.value.parcoursDir, parcours.slug)
+  const conflict = await findActiveConflict(workspaceRoot, parcours.slug)
   if (!conflict.ok) return conflict
 
   // Tout ce qu'on a créé, pour pouvoir revenir en arrière si l'utilisateur refuse le
@@ -265,22 +266,20 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
 // --- Étapes ----------------------------------------------------------------------------
 
 /**
- * On n'écrase jamais le parcours d'un autre slug : la progression et les tests de
- * l'utilisateur disparaîtraient sans qu'il l'ait demandé. C'est à l'appelant de proposer
- * une réinitialisation.
+ * On n'écrase jamais un parcours **en cours** d'un autre slug : sa progression et ses tests
+ * disparaîtraient sans que l'utilisateur l'ait demandé. C'est à l'appelant de proposer une
+ * réinitialisation.
+ *
+ * Seul `state.json` dit qu'un parcours est en cours (D44). Les autres fichiers de
+ * `.learn/parcours/` sont des archives — la réinitialisation les garde exprès (D38), et on
+ * y range la suite d'une série — et ne bloquent rien. Refuser sur leur simple présence
+ * rendait le cycle « finir, réinitialiser, importer le suivant » impossible.
  */
-async function findSlugConflict(parcoursDir: ResolvedPath, slug: string): Promise<Result<void>> {
-  let entries: string[]
-  try {
-    entries = await fs.readdir(parcoursDir)
-  } catch {
-    return ok(undefined)
-  }
-  const other = entries.filter((name) => name.endsWith('.json') && name !== `${slug}.json`)
-  if (other.length === 0) return ok(undefined)
-  const names = other.map((name) => name.replace(/\.json$/, '')).join(', ')
+async function findActiveConflict(workspaceRoot: string, slug: string): Promise<Result<void>> {
+  const active = await activeSlug(workspaceRoot)
+  if (active === undefined || active === slug) return ok(undefined)
   return err(
-    `Le dossier .learn/ contient déjà le parcours « ${names} ». Réinitialise-le avant d'importer « ${slug} » : rien n'a été écrasé.`
+    `Le parcours « ${active} » est en cours dans ce projet. Lance « LearnPath: Réinitialiser le parcours » et choisis « Supprimer le parcours (garder le JSON généré) » avant d'importer « ${slug} » : les fichiers de parcours sont conservés, rien n'a été écrasé.`
   )
 }
 

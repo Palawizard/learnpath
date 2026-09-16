@@ -11,6 +11,8 @@ import { ok, err } from './result.js'
 import {
   RunLoop,
   isWatched,
+  loadSession,
+  readImportedParcours,
   runCurrentStep,
   type Execute,
   type Session,
@@ -88,6 +90,31 @@ async function savedState(): Promise<ParcoursState> {
   if (!parsed.ok) throw new Error(parsed.error)
   return parsed.value
 }
+
+describe('loadSession — plusieurs parcours dans .learn/parcours/ (D44)', () => {
+  async function write(relative: string, content: string): Promise<void> {
+    await fs.mkdir(path.dirname(path.join(dir, relative)), { recursive: true })
+    await fs.writeFile(path.join(dir, relative), content, 'utf8')
+  }
+  const withSlug = (slug: string): string => JSON.stringify({ ...parcours, slug, title: `Parcours ${slug}` })
+
+  it('charge le parcours que state.json désigne, pas le premier fichier du dossier', async () => {
+    await write('.learn/parcours/1-donnees.json', withSlug('1-donnees'))
+    await write('.learn/parcours/2-ecrans.json', withSlug('2-ecrans'))
+    await write('.learn/state.json', JSON.stringify(createState('2-ecrans', '1.1')))
+
+    const session = await loadSession(dir)
+    if (!session.ok) throw new Error(session.error)
+    expect(session.value.parcours.slug).toBe('2-ecrans')
+  })
+
+  it('sans state, retombe sur le premier par ordre alphabétique', async () => {
+    await write('.learn/parcours/2-ecrans.json', withSlug('2-ecrans'))
+    await write('.learn/parcours/1-donnees.json', withSlug('1-donnees'))
+    const loaded = await readImportedParcours(dir)
+    expect(loaded.ok && loaded.value.slug).toBe('1-donnees')
+  })
+})
 
 describe('isWatched', () => {
   it('accepte un fichier de expected.files de l\'étape courante', () => {

@@ -18,6 +18,8 @@ aucun accès à l'Extension Development Host, aucun accès à VSCodium.
 **La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 110 points, un par
 ligne, avec le résultat attendu.** Dans l'ordre de priorité :
 
+000. **Une série de parcours** (points 29b à 29d) : import du parcours 1 d'`Inventaire/frontend`
+   avec les parcours 2 et 3 présents dans le même dossier.
 00. **Les aides pédagogiques dans le vrai panneau** (points 97 à 110, nouveaux) : exemples,
    squelette, solution en diff, « À propos », refus d'import pédagogique, et surtout le
    **point 108** — un parcours importé avant la mise à jour doit toujours se jouer.
@@ -55,9 +57,19 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 ## Lot en cours
 
 **Lot 9 — Pédagogie**, sur `dev`. Fait côté code ; reste la vérification à l'écran (points
-97 à 110). Version **0.3.0**, installée dans VSCodium.
+97 à 110). Version **0.3.1** (correctif D44), installée dans VSCodium.
 
 ## Ce qui a été fait dans cette session
+
+**Correctif D44 — une série de parcours se joue depuis le même dossier.** Version **0.3.1**.
+Trois parcours découpés (`1-…`, `2-…`, `3-…`) dans `.learn/parcours/` rendaient tout import
+impossible : l'import refusait dès qu'un autre JSON était présent, alors que la
+réinitialisation garde exprès les JSON (D38). Désormais `state.json` désigne le parcours
+actif par son slug (`activeSlug`, `readImportedParcours`), l'import ne refuse que sur un
+parcours **en cours** d'un autre slug, avec le geste exact dans le message. 4 tests
+d'import, 2 de chargement ; QA manuelle 29b à 29d ; `README` (section série).
+
+## Ce qui a été fait dans la session précédente (lot 9)
 
 **Un parcours apprend à coder, syntaxe comprise, et dit ce qu'il ne couvre pas.** Point de
 départ : un vrai parcours React (`stock-movements-react`) où l'étudiant a dû afficher la
@@ -85,7 +97,7 @@ en silence. Raisonnement complet dans **D40 à D43**.
 - Docs : `SPEC-PARCOURS.md`, `UX.md`, `ARCHITECTURE.md`, `IMPLEMENTATION_PLAN.md` (lot 9),
   `MANUAL-QA.md` (77, 78, 81, 97 à 110), `README`, `DECISIONS.md` (D40 à D43).
 
-## Ce qui a été fait dans la session précédente (lot 8)
+## Ce qui a été fait dans la session antérieure (lot 8)
 
 **Les parcours Python se jouent avec pytest, avec les mêmes garanties que Vitest.**
 Raisonnement complet dans **D39**. Version **0.2.0**.
@@ -231,7 +243,8 @@ reproduction est sous Linux, où ce sont des liens symboliques). Si le plantage 
 
 ## État des vérifications automatiques
 
-`npm run compile` et `npm test` au vert : **437 tests, 24 fichiers** (5 sautés sans pytest
+`npm run compile` et `npm test` au vert : **441 tests, 24 fichiers** après D44 ;
+**437 tests, 24 fichiers** (5 sautés sans pytest
 local), rejoués avec `VIRTUAL_ENV` et `LEARNPATH_REQUIRE_PYTEST=1` pour les runs pytest réels
 — l'exemple Python enrichi s'importe et se joue. Nouveaux cette session : `diff.test.ts`,
 `pedagogy.test.ts` (dont les deux exemples livrés acceptés), squelette dans `parcours`,

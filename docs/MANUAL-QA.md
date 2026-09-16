@@ -88,6 +88,9 @@ y écrire `function (` (code invalide), écrire une implémentation fausse mais 
 | 27 | « Recommencer depuis l'étape 1 » | Progression remise à zéro, `.learn/tests/` toujours là, code de l'utilisateur intact |
 | 28 | « Supprimer le parcours (garder le JSON généré) » | Progression, tests, config et caches supprimés ; seul `.learn/parcours/*.json` reste, inchangé et réimportable ; code de l'utilisateur intact |
 | 29 | Réinitialiser avec un `state.json` volontairement corrompu | Fonctionne quand même (le parcours est relu directement) |
+| 29b | Série (D44) : trois JSON dans `.learn/parcours/`, aucun importé ; importer le **deuxième** par ordre alphabétique | Import accepté ; le panneau affiche bien ce parcours-là, y compris après rechargement de la fenêtre ; les deux autres fichiers sont inchangés |
+| 29c | Parcours en cours, importer un autre JSON de la série | Refusé : le message nomme le parcours en cours et dit « Réinitialiser le parcours » puis « Supprimer le parcours (garder le JSON généré) » ; rien n'est modifié |
+| 29d | Après « Supprimer le parcours », importer le suivant de la série | Accepté sans rien déplacer ; les JSON des autres parcours sont toujours là |
 
 ## Focus et accessibilité
 

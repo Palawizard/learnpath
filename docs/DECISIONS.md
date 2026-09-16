@@ -1503,3 +1503,46 @@ chaque étape ou seulement pour les grosses, taille visée (8 à 15 lignes pour 
 la syntaxe »). `composePrompt` refuse une valeur hors liste dans l'un ou l'autre champ, et
 les tests vérifient que chaque niveau proposé par le formulaire est bien expliqué dans le
 gabarit livré.
+
+---
+
+## D44 — Le parcours actif est celui que désigne `state.json`, pas le seul fichier du dossier
+
+**Le problème, constaté.** Une fonctionnalité trop grosse pour dix étapes a été découpée,
+comme le demande désormais le prompt (D42), en trois parcours rangés dans
+`.learn/parcours/` : `1-…-donnees`, `2-…-ecrans`, `3-…-creation`. L'import du premier a été
+refusé : « Le dossier .learn/ contient déjà le parcours « 2-…, 3-… ». Réinitialise-le avant
+d'importer ». Réinitialiser n'aurait rien changé.
+
+Deux règles se contredisaient :
+
+- le parcours actif était identifié comme **le** fichier JSON du dossier
+  (`readImportedParcours` prenait `entries[0]`, dans l'ordre arbitraire de `readdir`), d'où
+  un import qui refusait dès qu'un autre `.json` était présent, quel que soit son slug ;
+- « Supprimer le parcours » **garde** exprès les JSON générés (D38).
+
+Le cycle d'une série — finir le parcours 1, réinitialiser, importer le 2 — était donc
+impossible sans déplacer des fichiers à la main, et le message indiquait une action qui ne
+débloquait rien.
+
+**Décision : `state.json` désigne le parcours en cours, par son `slug`, qu'il portait déjà.**
+
+- `readImportedParcours` charge `.learn/parcours/<slug du state>.json`. Sans state lisible,
+  ou si ce fichier a disparu, il retombe sur le premier fichier **par ordre alphabétique**
+  (tri explicite, plus l'ordre de `readdir`) : c'est le cas de « Réinitialiser » sur un
+  state cassé, qui doit continuer de marcher.
+- L'import ne refuse plus que s'il existe un **parcours en cours** (state lisible) d'un
+  **autre** slug, avec un message qui nomme ce parcours et le geste exact : « Réinitialiser
+  le parcours », puis « Supprimer le parcours (garder le JSON généré) ». Réimporter le même
+  slug reste permis.
+- Les autres fichiers de `.learn/parcours/` sont des archives : ils ne bloquent rien et ne
+  sont jamais touchés par l'import, ni par son rollback.
+
+Aucun champ n'est ajouté au format de `state.json` : le slug y était depuis le lot 2. Un
+state illisible ne désigne aucun parcours en cours — refuser l'import dans ce cas bloquerait
+l'utilisateur derrière un fichier qu'il ne peut pas réparer, alors que la progression perdue
+est, par construction, déjà illisible.
+
+**Ce qui n'est pas fait.** Pas de sélecteur « importer un parcours déjà présent dans
+`.learn/parcours/` » : le sélecteur de fichiers y mène en deux clics. À rouvrir si les séries
+deviennent l'usage courant.

@@ -65,6 +65,12 @@ export interface StepRunOptions {
  * Le parcours importé, relu depuis `.learn/parcours/`. Séparé de `loadSession` parce que
  * la réinitialisation en a besoin **sans** le state : un `state.json` illisible est
  * justement le cas où l'utilisateur lance « Réinitialiser ».
+ *
+ * Le dossier peut contenir plusieurs parcours : la réinitialisation les conserve (D38), et
+ * on y range la suite d'une série. Le parcours actif est donc celui que **`state.json`
+ * désigne** par son slug (D44), et non le premier fichier venu. Sans state lisible, ou si
+ * son fichier a disparu, on retombe sur le premier par ordre alphabétique — c'est le cas de
+ * la réinitialisation d'un state cassé.
  */
 export async function readImportedParcours(workspaceRoot: string): Promise<Result<Parcours>> {
   const parcoursDir = safeResolve(workspaceRoot, '.learn/parcours')
@@ -76,7 +82,9 @@ export async function readImportedParcours(workspaceRoot: string): Promise<Resul
   } catch {
     return err("Aucun parcours importé dans ce projet : le dossier .learn/parcours est introuvable.")
   }
-  const name = entries[0]
+  entries.sort()
+  const active = await activeSlug(workspaceRoot)
+  const name = active !== undefined && entries.includes(`${active}.json`) ? `${active}.json` : entries[0]
   if (name === undefined) return err("Aucun parcours importé dans ce projet.")
 
   const file = safeResolve(workspaceRoot, `.learn/parcours/${name}`)
@@ -95,6 +103,17 @@ export async function readImportedParcours(workspaceRoot: string): Promise<Resul
     )
   }
   return ok(parcours.value)
+}
+
+/**
+ * Slug du parcours en cours, lu dans `state.json`. `undefined` quand il n'y a pas de
+ * parcours en cours : pas de state (jamais importé, ou réinitialisé), ou state illisible.
+ */
+export async function activeSlug(workspaceRoot: string): Promise<string | undefined> {
+  const stateFile = safeResolve(workspaceRoot, '.learn/state.json')
+  if (!stateFile.ok) return undefined
+  const state = await readState(stateFile.value)
+  return state.ok ? state.value.slug : undefined
 }
 
 /** Charge le parcours importé et sa progression. Aucune écriture. */

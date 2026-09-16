@@ -236,17 +236,45 @@ describe('refus de confirmation', () => {
   })
 })
 
-describe('slug conflictuel', () => {
-  it('refuse sans rien écraser', async () => {
+describe('slug conflictuel (D44)', () => {
+  const archive = '{"slug":"auth-jwt"}'
+  const stateOf = (slug: string): string =>
+    JSON.stringify({ version: 1, slug, currentStepId: '1.1', hintsRevealed: {}, solutionsRevealed: [] })
+
+  it('refuse sans rien écraser quand un autre parcours est en cours', async () => {
     await fs.mkdir(path.join(workspace, '.learn/parcours'), { recursive: true })
-    await fs.writeFile(path.join(workspace, '.learn/parcours/auth-jwt.json'), '{"slug":"auth-jwt"}', 'utf8')
+    await fs.writeFile(path.join(workspace, '.learn/parcours/auth-jwt.json'), archive, 'utf8')
+    await fs.writeFile(path.join(workspace, '.learn/state.json'), stateOf('auth-jwt'), 'utf8')
 
     const result = await importParcours(parcours(), workspace, hooks())
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.error).toContain('auth-jwt')
-    expect(await read('.learn/parcours/auth-jwt.json')).toBe('{"slug":"auth-jwt"}')
+    expect(result.error).toContain('« auth-jwt » est en cours')
+    expect(result.error).toContain('Supprimer le parcours')
+    expect(await read('.learn/parcours/auth-jwt.json')).toBe(archive)
+    expect(await read('.learn/state.json')).toBe(stateOf('auth-jwt'))
     expect(await missing('.learn/tests/step-1.1.spec.js')).toBe(true)
+  })
+
+  it('importe à côté des parcours conservés quand aucun n’est en cours, sans y toucher', async () => {
+    // L'état laissé par « Supprimer le parcours » : les JSON restent, plus de state.json.
+    // C'est le cycle d'une série — finir, réinitialiser, importer le suivant.
+    await fs.mkdir(path.join(workspace, '.learn/parcours'), { recursive: true })
+    await fs.writeFile(path.join(workspace, '.learn/parcours/auth-jwt.json'), archive, 'utf8')
+    await fs.writeFile(path.join(workspace, '.learn/parcours/z-suite.json'), '{"slug":"z-suite"}', 'utf8')
+
+    const result = await importParcours(parcours(), workspace, hooks())
+    if (!result.ok) throw new Error(result.error)
+    expect(await read('.learn/parcours/auth-jwt.json')).toBe(archive)
+    const state = parseState(await read('.learn/state.json'))
+    expect(state.ok && state.value.slug).toBe('panier')
+  })
+
+  it('un state illisible ne désigne aucun parcours en cours et ne bloque pas l’import', async () => {
+    await fs.mkdir(path.join(workspace, '.learn/parcours'), { recursive: true })
+    await fs.writeFile(path.join(workspace, '.learn/parcours/auth-jwt.json'), archive, 'utf8')
+    await fs.writeFile(path.join(workspace, '.learn/state.json'), '{cassé', 'utf8')
+    expect((await importParcours(parcours(), workspace, hooks())).ok).toBe(true)
   })
 
   it('accepte de réimporter le même slug', async () => {
