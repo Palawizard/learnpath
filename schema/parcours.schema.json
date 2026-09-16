@@ -15,6 +15,7 @@
     },
     "title": { "type": "string", "minLength": 1 },
     "intro": { "type": "string" },
+    "scope": { "$ref": "#/$defs/scope" },
     "runner": { "$ref": "#/$defs/runner" },
     "contract": { "$ref": "#/$defs/contract" },
     "steps": {
@@ -25,6 +26,25 @@
     }
   },
   "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["covered", "notCovered"],
+      "properties": {
+        "covered": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "notCovered": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "example": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "code"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "code": { "type": "string", "minLength": 1 },
+        "explanation": { "type": "string" }
+      }
+    },
     "runner": {
       "type": "object",
       "additionalProperties": false,
@@ -65,6 +85,11 @@
         },
         "title": { "type": "string", "minLength": 1 },
         "explanation": { "type": "string", "minLength": 1 },
+        "examples": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/example" }
+        },
         "expected": {
           "type": "object",
           "additionalProperties": false,
@@ -96,6 +121,11 @@
         "hints": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
+        },
+        "scaffold": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" }
         },
         "solution": {
           "type": "object",

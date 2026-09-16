@@ -8,15 +8,19 @@ dans git et dans `DECISIONS.md`).
 
 ## Date de dernière mise à jour
 
-2026-09-15
+2026-09-16
 
 ## À VÉRIFIER PAR UN HUMAIN AVANT DE PUBLIER
 
 Rien de ce qui suit n'a été fait, et rien ne peut l'être depuis une session d'agent :
 aucun accès à l'Extension Development Host, aucun accès à VSCodium.
 
-**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 96 points, un par
+**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 110 points, un par
 ligne, avec le résultat attendu.** Dans l'ordre de priorité :
+
+00. **Les aides pédagogiques dans le vrai panneau** (points 97 à 110, nouveaux) : exemples,
+   squelette, solution en diff, « À propos », refus d'import pédagogique, et surtout le
+   **point 108** — un parcours importé avant la mise à jour doit toujours se jouer.
 
 0. **Jouer le parcours Python de bout en bout dans VSCodium** (points 85 à 96, nouveaux) :
    `examples/exemple-panier-python.json`, dans `examples/demo-project-python`. La boucle
@@ -50,10 +54,38 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 
 ## Lot en cours
 
-**Lot 8 — Python (pytest)**, sur la branche `feat/python` issue de `dev`. Fait côté code,
-vrais runs pytest compris ; reste la vérification à l'écran (points 85 à 96).
+**Lot 9 — Pédagogie**, sur `dev`. Fait côté code ; reste la vérification à l'écran (points
+97 à 110). Version **0.3.0**, installée dans VSCodium.
 
 ## Ce qui a été fait dans cette session
+
+**Un parcours apprend à coder, syntaxe comprise, et dit ce qu'il ne couvre pas.** Point de
+départ : un vrai parcours React (`stock-movements-react`) où l'étudiant a dû afficher la
+solution à chaque étape — explications sans code, étapes de 30 à 56 lignes, périmètre réduit
+en silence. Raisonnement complet dans **D40 à D43**.
+
+- **Format** (facultatif au schéma, exigé à l'import) : `steps[].examples` (syntaxe sur un
+  autre sujet), `steps[].scaffold` (fichier à trous), `scope` à la racine.
+- **`src/core/pedagogy.ts`** (neuf) : `checkPedagogy`, appelé par la commande d'import avant
+  toute écriture — `scope` présent, un exemple par étape qui ne recopie pas la solution, au
+  plus **20 lignes significatives** ajoutées par étape. Pas dans `loadParcours`, pour que les
+  parcours déjà importés restent jouables. **`src/core/diff.ts`** (neuf) : LCS ligne à ligne.
+- **`loadParcours`** : squelette sur un fichier non déclaré, ou identique à la solution, refusé.
+- **State** : `scaffoldsRevealed` (relu vide sur un ancien `state.json`).
+- **Panneau** : « À propos de ce parcours » (intro + périmètre, ouvert à l'étape 1), exemples
+  colorés (Python ajouté au coloriseur), « Ce que vérifie le test » replié, bouton
+  **Squelette** entre Indice et Solution (copie par l'hôte, uniquement si affiché), solution
+  et squelette **en diff** quand le fichier existait, bandeau « deux solutions de suite »,
+  « Reste à faire » en fin de parcours, récapitulatif « squelette affiché ». Corrigé au
+  passage : les indices s'affichaient numérotés deux fois (« 1. 1. »).
+- **Prompt** : étape 0 de périmètre (découper et attendre au-delà de dix étapes), règles
+  pédagogiques A à F, deux niveaux (`{{NIVEAU}}`, `{{NIVEAU_LANGAGE}}`) et `{{ACQUIS}}`.
+  Le formulaire suit, « je découvre la syntaxe » par défaut.
+- **Exemples livrés** enrichis (exemples, squelettes 1.1 à 1.4, `scope`), JS et Python.
+- Docs : `SPEC-PARCOURS.md`, `UX.md`, `ARCHITECTURE.md`, `IMPLEMENTATION_PLAN.md` (lot 9),
+  `MANUAL-QA.md` (77, 78, 81, 97 à 110), `README`, `DECISIONS.md` (D40 à D43).
+
+## Ce qui a été fait dans la session précédente (lot 8)
 
 **Les parcours Python se jouent avec pytest, avec les mêmes garanties que Vitest.**
 Raisonnement complet dans **D39**. Version **0.2.0**.
@@ -199,7 +231,12 @@ reproduction est sous Linux, où ce sont des liens symboliques). Si le plantage 
 
 ## État des vérifications automatiques
 
-`npm run compile` et `npm test` au vert : **395 tests, 22 fichiers**, dont les vrais runs
+`npm run compile` et `npm test` au vert : **437 tests, 24 fichiers** (5 sautés sans pytest
+local), rejoués avec `VIRTUAL_ENV` et `LEARNPATH_REQUIRE_PYTEST=1` pour les runs pytest réels
+— l'exemple Python enrichi s'importe et se joue. Nouveaux cette session : `diff.test.ts`,
+`pedagogy.test.ts` (dont les deux exemples livrés acceptés), squelette dans `parcours`,
+`reveal`, `state`, `viewmodel`, rendu et protocole dans `panel.test.ts`, prompt à deux
+niveaux. Avant cette session : **395 tests, 22 fichiers**, dont les vrais runs
 pytest (lancés avec `VIRTUAL_ENV` pointant un venv avec pytest 9.1.1 et
 `LEARNPATH_REQUIRE_PYTEST=1`). Sans Python avec pytest, les 5 tests de `pytest réel` sont
 sautés localement ; la CI les exige.
@@ -280,6 +317,10 @@ création des comptes `Palawizard` (marketplace VS Code, Open VSX).
   rouvrir si le cas remonte d'un vrai utilisateur.
 
 ## Prochaine action concrète
+
+000. Régénérer le parcours d'`Inventaire/frontend` avec le nouveau prompt (« je découvre la
+    syntaxe »), en commençant par la partie manquante (client API, hook, MSW, routes), et
+    dérouler les points **97 à 110** sur ce vrai parcours React.
 
 00. Pousser `feat/python` et regarder la CI : c'est la première fois que les runs pytest
     tournent sous **Windows** (`python.exe`, `Scripts\`, chemins du rapport JUnit). Puis

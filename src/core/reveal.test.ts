@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { planSolution, revealCurrentSolution, revealNextHint } from './reveal.js'
+import { planSolution, revealCurrentScaffold, revealCurrentSolution, revealNextHint } from './reveal.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import type { Session } from './progression.js'
 import type { Parcours, Step } from './parcours.js'
@@ -56,6 +56,7 @@ function session(steps: readonly Step[] = [step()]): Session {
       currentStepId: steps[0]?.id ?? '1.1',
       hintsRevealed: {},
       solutionsRevealed: [],
+      scaffoldsRevealed: [],
       startedAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },
@@ -147,6 +148,22 @@ describe('revealCurrentSolution', () => {
  * `planSolution` ne sert plus qu'à `verifyAllGreen`, contre son bac à sable. Ses deux
  * garde-fous restent testés là : c'est le dernier chemin qui écrit une solution.
  */
+describe('revealCurrentScaffold', () => {
+  it("marque le squelette affiché, écrit le state et ne touche à aucun fichier du projet", async () => {
+    const s = session([step({ scaffold: { 'src/panier.js': '// TODO\n' } })])
+    const r = await revealCurrentScaffold(s)
+    expect(r.ok && r.value.state.scaffoldsRevealed).toEqual(['1.1'])
+    const onDisk = await readState(resolved('.learn/state.json'))
+    expect(onDisk.ok && onDisk.value.scaffoldsRevealed).toEqual(['1.1'])
+    await expect(fs.stat(path.join(root, 'src'))).rejects.toThrow()
+  })
+
+  it("refuse une étape sans squelette", async () => {
+    const r = await revealCurrentScaffold(session())
+    expect(r.ok).toBe(false)
+  })
+})
+
 describe('planSolution', () => {
   it("refuse un fichier absent de expected.files de l'étape", () => {
     const rogue = step({

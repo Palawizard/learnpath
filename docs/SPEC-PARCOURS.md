@@ -30,6 +30,13 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
   "title": "Authentification par JWT",
   "intro": "Markdown. Ce qu'on va construire et pourquoi.",
 
+  "scope": {
+    // Exigé à l'import (D42). Ce que le parcours couvre de la demande, et ce qu'il laisse
+    // de côté — [] si rien. Affiché dans « À propos » et à l'écran de fin.
+    "covered": ["Créer et vérifier un token"],
+    "notCovered": ["Le rafraîchissement du token"]
+  },
+
   "runner": {
     "kind": "vitest",            // "vitest" | "pytest" ; la commande est construite
                                  // par l'extension, pas fournie par le parcours (D14, D39)
@@ -52,7 +59,16 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
     {
       "id": "1.1",
       "title": "Signer un token",
-      "explanation": "Markdown. Le POURQUOI, pas le code. 3 à 8 lignes.",
+      "explanation": "Markdown. Le pourquoi, puis ce que l'étape demande. Jamais la solution. 3 à 10 lignes.",
+      "examples": [
+        // Au moins un par étape, exigé à l'import (D40). La syntaxe dont l'étape a besoin,
+        // sur un AUTRE sujet que l'étape. Refusé s'il recopie la solution.
+        {
+          "title": "Encoder en base64url",
+          "code": "const b64 = Buffer.from('bonjour').toString('base64url')",
+          "explanation": "Markdown. Ce qu'on lit, construction par construction."
+        }
+      ],
       "expected": {
         "files": ["src/auth/token.ts"],
         "contract": "export function createToken(payload: object, secret: string): string",
@@ -70,6 +86,11 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
         "Un JWT c'est header.payload.signature, chaque partie en base64url",
         "Le header minimal est { alg: 'HS256', typ: 'JWT' }"
       ],
+      "scaffold": {
+        // Facultatif (D41). Contenu complet du fichier, la partie de l'étape remplacée par
+        // sa structure et des TODO. Différent de la solution, clés dans expected.files.
+        "src/auth/token.ts": "export function createToken(payload: object, secret: string): string {\n  // TODO ...\n}\n"
+      },
       "solution": {
         "src/auth/token.ts": "// code complet de l'étape"
       }
@@ -96,8 +117,19 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
    écrite telle quelle sur le disque de l'étudiant : si elle ne contient que la nouveauté
    de l'étape, elle efface le travail des étapes précédentes. C'est le mode de défaillance
    le plus fréquent du contenu généré, et l'import le refuse (D21).
-6. **5 à 10 étapes.** Une étape = une idée. Si une étape demande plus de ~15 lignes
-   à l'étudiant, la couper en deux.
+6. **5 à 10 étapes.** Une étape = une idée, et **au plus 20 lignes** à écrire : les lignes
+   que la solution N ajoute ou modifie par rapport à la solution N-1, hors lignes vides et
+   lignes de fermeture. Au-delà, l'import refuse et nomme l'étape (D41).
+7. **La syntaxe se montre, la solution non** (D40). Chaque étape porte au moins un
+   exemple résolu sur un autre sujet. Un exemple qui reprend plus de la moitié des lignes
+   de la solution de l'étape est refusé.
+8. **Le périmètre est écrit** (D42). `scope` est exigé. Une demande qui ne tient pas en
+   dix étapes se découpe en plusieurs parcours, décidés avec l'utilisateur avant la
+   génération.
+
+Les règles 6 à 8 sont vérifiées par `checkPedagogy` (`src/core/pedagogy.ts`) à la commande
+d'import, **pas** par `loadParcours` : un parcours importé avant elles doit rester jouable
+quand la session le relit.
 
 ## Structure des tests
 
@@ -197,6 +229,9 @@ Le module doit correspondre à un fichier de `expected.files` de l'étape : un
 
 C'est le garde-fou le plus important, il attrape les parcours bidons :
 
+0. Avant toute écriture : forme (`loadParcours`), puis pédagogie (`checkPedagogy` : `scope`
+   présent, un exemple par étape qui ne recopie pas la solution, au plus 20 lignes par
+   étape). Un refus liste tous les problèmes à la fois dans la vue Sortie.
 1. Écrire les tests sur disque, jouer `runner.setup`.
 2. Lancer **tous** les tests sur le projet en l'état.
 3. **Chaque étape doit être rouge.** Une étape déjà verte avant que l'étudiant ait
@@ -251,8 +286,9 @@ nulle part ailleurs.** Il n'est recopié ni ici, ni dans le README, ni dans le c
 webview : il a existé en deux exemplaires divergents, et un parcours a été généré avec une
 version périmée — d'où D37.
 
-Trois champs y sont marqués, et eux seuls : `{{FONCTIONNALITE}}`, `{{NIVEAU}}` et
-`{{FICHIERS}}` (facultatif, sa ligne disparaît quand il est vide). `composePrompt`
+Cinq champs y sont marqués, et eux seuls : `{{FONCTIONNALITE}}`, `{{NIVEAU}}` (programmation),
+`{{NIVEAU_LANGAGE}}` (D43), et deux facultatifs dont la ligne disparaît quand ils sont vides,
+`{{ACQUIS}}` et `{{FICHIERS}}`. `composePrompt`
 (`src/core/prompt.ts`) les substitue et **refuse** un gabarit dont un marqueur reste :
 un champ renommé se voit à la compilation du prompt, pas dans le presse-papiers de
 l'utilisateur.

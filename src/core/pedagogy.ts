@@ -1,0 +1,119 @@
+import type { Parcours } from './parcours.js'
+import { type Result, ok, err } from './result.js'
+import { isSignificant, significantAdditions } from './diff.js'
+
+/**
+ * Règles d'import qui portent sur la **pédagogie** du parcours plutôt que sur sa forme
+ * (D40 à D42). Elles ne vivent pas dans `loadParcours` : celui-ci relit aussi un parcours
+ * déjà importé à chaque session, et un parcours importé avant ces règles doit rester
+ * jouable. C'est l'import qui fait barrage, pas la lecture.
+ */
+
+/**
+ * Au-delà, l'étape demande trop à la fois. La spec dit « environ 15 lignes » ; la marge
+ * absorbe les imports et les signatures, qui comptent sans être le cœur de l'étape.
+ */
+export const MAX_STEP_LINES = 20
+
+/**
+ * Contenu d'un fichier juste avant l'étape `index` : la dernière solution antérieure qui
+ * l'écrit, ou vide si aucune étape précédente ne l'a créé.
+ */
+export function contentBefore(parcours: Parcours, index: number, file: string): string {
+  for (let i = index - 1; i >= 0; i--) {
+    const content = parcours.steps[i]?.solution[file]
+    if (content !== undefined) return content
+  }
+  return ''
+}
+
+/** Lignes significatives que l'étape `index` demande d'écrire, tous fichiers confondus. */
+export function stepSize(parcours: Parcours, index: number): number {
+  const step = parcours.steps[index]
+  if (step === undefined) return 0
+  return Object.entries(step.solution).reduce(
+    (total, [file, content]) => total + significantAdditions(contentBefore(parcours, index, file), content),
+    0
+  )
+}
+
+export function checkPedagogy(parcours: Parcours): Result<void> {
+  const problems: string[] = []
+
+  if (parcours.scope === undefined) {
+    problems.push(
+      'le champ « scope » est absent : le parcours doit dire ce qu’il couvre de la demande (scope.covered) et ce qu’il laisse de côté (scope.notCovered, vide si rien)'
+    )
+  }
+
+  parcours.steps.forEach((step, index) => {
+    const at = `Étape ${step.id}`
+
+    if ((step.examples ?? []).length === 0) {
+      problems.push(
+        `${at} : aucun exemple (examples). Chaque étape montre la syntaxe dont elle a besoin sur un autre sujet que l’étape`
+      )
+    }
+
+    const size = stepSize(parcours, index)
+    if (size > MAX_STEP_LINES) {
+      problems.push(
+        `${at} : la solution demande ${size} lignes à écrire, le maximum est ${MAX_STEP_LINES}. Coupe l’étape en deux`
+      )
+    }
+
+    const added = addedLines(parcours, index)
+    for (const example of step.examples ?? []) {
+      if (copiesSolution(example.code, added)) {
+        problems.push(
+          `${at} : l’exemple « ${example.title} » reprend la solution de l’étape. Un exemple montre la syntaxe sur un autre sujet, il ne donne pas la réponse`
+        )
+      }
+    }
+  })
+
+  if (problems.length === 0) return ok(undefined)
+  return err(
+    [
+      `Parcours refusé : ${problems.length} problème(s) de conception pédagogique.`,
+      ...problems.map((problem) => `• ${problem}.`),
+    ].join('\n')
+  )
+}
+
+/** Lignes (normalisées) ajoutées par la solution de l'étape. */
+function addedLines(parcours: Parcours, index: number): ReadonlySet<string> {
+  const step = parcours.steps[index]
+  const lines = new Set<string>()
+  if (step === undefined) return lines
+  for (const [file, content] of Object.entries(step.solution)) {
+    const before = new Set(contentBefore(parcours, index, file).split('\n').map(normalize))
+    for (const line of content.split('\n')) {
+      const normalized = normalize(line)
+      if (!before.has(normalized)) lines.add(normalized)
+    }
+  }
+  return lines
+}
+
+/**
+ * Un exemple recopie la solution quand plus de la moitié de ses lignes « parlantes » se
+ * retrouvent telles quelles dans ce que l'étape ajoute.
+ *
+ * ponytail: heuristique par égalité de lignes normalisées. Un exemple qui renomme juste les
+ * variables passe entre les mailles ; passer à une similarité par jetons si ça arrive.
+ */
+function copiesSolution(code: string, added: ReadonlySet<string>): boolean {
+  const telling = code
+    .split('\n')
+    .filter((line) => isSignificant(line) && !/^\s*(import|from)\s/.test(line))
+    .map(normalize)
+    .filter((line) => line.length >= 12)
+  if (telling.length < 3) return false
+  const copied = telling.filter((line) => added.has(line)).length
+  return copied / telling.length > 0.5
+}
+
+function normalize(line: string): string {
+  return line.trim().replace(/\s+/g, ' ')
+}

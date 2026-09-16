@@ -21,6 +21,9 @@ function model(overrides: Partial<ViewModel> = {}): ViewModel {
     total: 5,
     percent: 20,
     explanation: 'Une **explication**.',
+    examples: [],
+    languageFile: 'src/panier.js',
+    test: { file: '.learn/tests/step-1.2.spec.js', content: '' },
     expectedFiles: ['src/panier.js'],
     contract: 'addItem(panier, item, qty = 1)',
     acceptance: ['Ajoute une ligne si absent', 'Incrémente qty si déjà présent'],
@@ -28,6 +31,10 @@ function model(overrides: Partial<ViewModel> = {}): ViewModel {
     hintsRemaining: 2,
     solutionRevealed: false,
     solution: [],
+    scaffoldAvailable: false,
+    scaffoldRevealed: false,
+    scaffold: [],
+    pacingNotice: false,
     status: { kind: 'none', summary: '', advanced: false },
     running: false,
     regressions: [],
@@ -143,9 +150,9 @@ describe('renderMain — bloc Attendu, indices, actions', () => {
       model({
         finished: true,
         recap: [
-          { id: '1.1', title: 'Créer un panier', hints: 0, solution: false },
-          { id: '1.2', title: 'Ajouter un article', hints: 2, solution: false },
-          { id: '1.3', title: 'Total', hints: 0, solution: true },
+          { id: '1.1', title: 'Créer un panier', hints: 0, solution: false , scaffold: false },
+          { id: '1.2', title: 'Ajouter un article', hints: 2, solution: false , scaffold: false },
+          { id: '1.3', title: 'Total', hints: 0, solution: true , scaffold: false },
         ],
       })
     )
@@ -161,7 +168,7 @@ describe('renderMain — bloc Attendu, indices, actions', () => {
         finished: true,
         stepTitle: 'Appliquer la remise',
         explanation: 'Le pourquoi de la dernière étape.',
-        recap: [{ id: '1.1', title: 'Créer un panier', hints: 0, solution: false }],
+        recap: [{ id: '1.1', title: 'Créer un panier', hints: 0, solution: false , scaffold: false }],
       })
     )
     expect(html).not.toContain('Appliquer la remise')
@@ -347,12 +354,23 @@ describe("renderWelcome — l'état d'accueil, sans parcours", () => {
 describe('renderPromptPage — le formulaire de génération du prompt', () => {
   const html = renderPromptPage('N0NCE', undefined)
 
-  it('demande les trois champs, et rend le seul obligatoire obligatoire', () => {
+  it('demande les champs, et rend le seul obligatoire obligatoire', () => {
     expect(html).toContain('id="feature"')
     expect(html).toContain('required')
     expect(html).toContain('value="débutant"')
     expect(html).toContain('value="intermédiaire"')
+    expect(html).toContain('value="avancé"')
+    expect(html).toContain('id="known"')
     expect(html).toContain('id="files"')
+  })
+
+  it('demande le niveau dans le langage, « je découvre la syntaxe » par défaut (D43)', () => {
+    expect(html).toContain('id="languageLevel"')
+    expect(html).toContain('<option value="je découvre la syntaxe" selected>')
+    expect(html).toContain('value="je connais les bases"')
+    // L'apostrophe est échappée dans l'attribut, et la valeur reste celle du core.
+    expect(html).toContain('value="à l&#39;aise"')
+    expect(html).toContain("languageLevel: document.getElementById('languageLevel').value")
   })
 
   it('affiche le prompt en entier, modifiable, avec le bouton de copie', () => {
@@ -557,5 +575,90 @@ describe('renderMain — relire une étape passée, et refaire une étape', () =
     // Deux étapes acquises : la troisième est l'étape courante.
     expect(html.match(/segment done/g)).toHaveLength(2)
     expect(html).toContain('segment current')
+  })
+})
+
+describe('renderMain — aides à l’apprentissage (D40 à D42)', () => {
+  it('montre les exemples de syntaxe, colorés et commentés', () => {
+    const html = renderMain(
+      model({ examples: [{ title: 'Un compteur', code: 'const [n, setN] = useState(0)', explanation: '- **valeur**' }] })
+    )
+    expect(html).toContain('Exemple de syntaxe')
+    expect(html).toContain('Un compteur')
+    expect(html).toContain('<span class="tok-keyword">const</span>')
+    expect(html).toContain('<strong>valeur</strong>')
+  })
+
+  it('colore aussi un exemple Python', () => {
+    const html = renderMain(model({ languageFile: 'panier.py', examples: [{ title: 'x', code: 'def f():\n    return None  # rien' }] }))
+    expect(html).toContain('<span class="tok-keyword">def</span>')
+    expect(html).toContain('<span class="tok-comment"># rien</span>')
+  })
+
+  it('ouvre « À propos » à la première étape seulement, avec ce qui n’est pas couvert', () => {
+    const scope = { covered: ['le panier'], notCovered: ['la page <b>'] }
+    const first = renderMain(model({ position: 1, scope }))
+    expect(first).toContain('<details class="card about" open>')
+    expect(first).toContain('Ce qu’il ne couvre pas')
+    expect(first).toContain('la page &lt;b&gt;')
+    expect(renderMain(model({ position: 2, scope }))).toContain('<details class="card about">')
+  })
+
+  it('rappelle en fin de parcours ce qui reste hors du parcours', () => {
+    const html = renderMain(model({ finished: true, scope: { covered: ['a'], notCovered: ['la page'] } }))
+    expect(html).toContain('Reste à faire, hors de ce parcours')
+    expect(html).toContain('la page')
+  })
+
+  it('montre le test de l’étape dans un bloc repliable', () => {
+    const html = renderMain(model({ test: { file: '.learn/tests/step-1.2.spec.js', content: "expect(x).toBe('<ok>')" } }))
+    expect(html).toContain('Ce que vérifie le test')
+    expect(html).toContain('&lt;ok&gt;')
+  })
+
+  it('propose le squelette entre l’indice et la solution, puis l’affiche avec sa copie', () => {
+    const offered = renderMain(model({ scaffoldAvailable: true }))
+    const order = ['data-action="hint"', 'data-action="scaffold"', 'data-action="solution"'].map((a) => offered.indexOf(a))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(order[1]).toBeGreaterThan(-1)
+
+    const shown = renderMain(
+      model({ scaffoldAvailable: true, scaffoldRevealed: true, scaffold: [{ file: 'src/panier.js', content: '// TODO' }] })
+    )
+    expect(shown).toContain('data-action="scaffold" disabled')
+    expect(shown).toContain('data-action="copyScaffold" data-file="src/panier.js"')
+  })
+
+  it('montre ce que change la solution, le fichier complet replié, et résume le contexte lointain', () => {
+    const diff = [
+      ...Array.from({ length: 6 }, (_, i) => ({ kind: 'same' as const, text: `ligne ${i}` })),
+      { kind: 'add' as const, text: 'nouvelle <ligne>' },
+    ]
+    const html = renderMain(
+      model({ solutionRevealed: true, solution: [{ file: 'src/panier.js', content: 'tout', diff }] })
+    )
+    expect(html).toContain('<span class="diff-line add" aria-label="ajoutée">+ nouvelle &lt;ligne&gt;</span>')
+    expect(html).toContain('<span class="diff-line skip">⋯</span>')
+    expect(html).not.toContain('ligne 0<')
+    expect(html).toContain('ligne 5')
+    expect(html).toContain('<summary>Fichier complet</summary>')
+  })
+
+  it('dit sans juger que deux solutions de suite peuvent venir d’étapes trop grosses', () => {
+    expect(renderMain(model({ pacingNotice: true }))).toContain('Deux solutions affichées de suite')
+    expect(renderMain(model())).not.toContain('Deux solutions affichées de suite')
+  })
+})
+
+describe('parseWebviewMessage — squelette', () => {
+  it('accepte revealScaffold et copyScaffold bien formés, refuse le reste', () => {
+    expect(parseWebviewMessage({ type: 'revealScaffold', stepId: '1.2' })).toEqual({ type: 'revealScaffold', stepId: '1.2' })
+    expect(parseWebviewMessage({ type: 'copyScaffold', stepId: '1.2', file: 'a.js' })).toEqual({
+      type: 'copyScaffold',
+      stepId: '1.2',
+      file: 'a.js',
+    })
+    expect(parseWebviewMessage({ type: 'copyScaffold', stepId: '1.2' })).toBeUndefined()
+    expect(parseWebviewMessage({ type: 'revealScaffold' })).toBeUndefined()
   })
 })

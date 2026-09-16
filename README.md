@@ -14,8 +14,9 @@ Vert, on passe à la suivante.
 ## Ce que ça fait, et ce que ça ne fait pas
 
 - **Ça fait** : afficher une étape, surveiller tes sauvegardes, lancer les tests de
-  l'étape et des étapes précédentes, avancer tout seul, donner des indices un par un,
-  et révéler la solution si tu bloques.
+  l'étape et des étapes précédentes, avancer tout seul, te **montrer la syntaxe** dont
+  l'étape a besoin sur un exemple, donner des indices un par un, un squelette à compléter,
+  et révéler la solution — en montrant ce que l'étape change — si tu bloques.
 - **Ça ne fait pas** : générer le parcours. C'est un fichier JSON produit en amont par
   l'agent de code que tu utilises déjà (Claude Code, Codex, Copilot Chat, ce que tu veux).
 
@@ -54,8 +55,10 @@ Il te faut :
    pour un projet Python) et attend ton accord. Rien ne se lance sans lui.
 5. **Attends la vérification.** L'extension joue elle-même le parcours entier dans une
    copie temporaire de ton projet : chaque étape doit être rouge au départ, et chaque
-   solution doit rendre vertes toutes les étapes jouées jusque-là. Un parcours bancal est
-   refusé ici, avec le nom de l'étape fautive — et rien n'est laissé derrière.
+   solution doit rendre vertes toutes les étapes jouées jusque-là. Avant ça, sans rien
+   lancer : chaque étape doit avoir un exemple de syntaxe, ne pas demander plus de 20
+   lignes, et le parcours doit dire ce qu'il couvre et ce qu'il laisse de côté. Un parcours
+   bancal est refusé ici, avec le nom de l'étape fautive — et rien n'est laissé derrière.
    Compte une dizaine de secondes, une barre de progression t'accompagne.
 6. **Le panneau s'ouvre sur l'étape 1**, dans la barre d'activité, sans te prendre le
    curseur. Écris le code dans le fichier indiqué, sauvegarde.
@@ -76,11 +79,19 @@ sur l'accueil du panneau, ou commande **LearnPath : Générer le prompt du parco
 reste disponible avec un parcours en cours, puisqu'on génère un parcours par
 fonctionnalité.
 
-Un formulaire court, trois champs :
+Un formulaire court :
 
-- **la fonctionnalité à implémenter** — le seul obligatoire ;
-- **ton niveau** : débutant ou intermédiaire ;
+- **la fonctionnalité à implémenter** — le seul champ obligatoire ;
+- **ton niveau en programmation** : débutant, intermédiaire ou avancé ;
+- **ton niveau dans le langage ou le framework** : « je découvre la syntaxe », « je connais
+  les bases » ou « à l'aise ». C'est lui qui compte le plus : il décide combien d'exemples
+  de syntaxe tu verras, si chaque étape a un squelette, et leur taille ;
+- **ce que tu connais déjà**, facultatif ;
 - **les fichiers ou dossiers concernés**, facultatif, pour orienter le générateur.
+
+Le prompt demande à ton agent d'annoncer le périmètre **avant** de générer : si ta demande
+ne tient pas en dix étapes, il te propose de la découper en plusieurs parcours au lieu de
+la réduire en silence.
 
 Puis le prompt complet s'affiche, **en entier et modifiable**, avec un bouton **Copier**.
 Tu vois exactement ce que tu envoies, et tu peux le retoucher avant : c'est ce qui te reste
@@ -103,7 +114,7 @@ Tout tient dans un dossier, plus deux lignes de `.gitignore` :
 | `.learn/tests/step-*.spec.js` ou `test_step_*.py` | à l'import | les tests des étapes |
 | `.learn/vitest.config.mts` | à l'import, projet JS/TS | une config Vitest isolée, qui ne lit que `.learn/tests/` ; elle hérite des plugins et alias de ton `vite.config.*` s'il existe, jamais de ta config de test |
 | `.learn/pytest.ini` | à l'import, projet Python | une config pytest isolée : ta config pytest et ton `conftest.py` ne sont pas appliqués aux tests du parcours |
-| `.learn/state.json` | en continu | ta progression : étape en cours, indices vus, solutions révélées |
+| `.learn/state.json` | en continu | ta progression : étape en cours, indices vus, squelettes et solutions affichés |
 | `.learn/.vite/` | pendant les runs, projet JS/TS | le cache de Vitest, jetable |
 | `.gitignore` | à l'import | une ou deux lignes ajoutées sous un commentaire `# LearnPath` |
 

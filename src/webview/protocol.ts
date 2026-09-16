@@ -16,6 +16,9 @@ export type WebviewMessage =
   | { readonly type: 'revealHint'; readonly stepId: string }
   | { readonly type: 'revealSolution'; readonly stepId: string }
   | { readonly type: 'copySolution'; readonly stepId: string; readonly file: string }
+  /** Afficher le squelette de l'étape courante (D41). N'écrit que le state. */
+  | { readonly type: 'revealScaffold'; readonly stepId: string }
+  | { readonly type: 'copyScaffold'; readonly stepId: string; readonly file: string }
   /** Relire une étape passée, en lecture seule : n'écrit rien, jamais. */
   | { readonly type: 'review'; readonly stepId: string }
   /** Quitter la relecture et revenir à l'étape en cours. */
@@ -52,11 +55,14 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | undefined {
       return typeof stepId === 'string' ? { type: 'redo', stepId } : undefined
     case 'revealSolution':
       return typeof stepId === 'string' ? { type: 'revealSolution', stepId } : undefined
-    case 'copySolution': {
-      // `file` sert de clé dans `step.solution`, jamais à construire un chemin.
+    case 'revealScaffold':
+      return typeof stepId === 'string' ? { type: 'revealScaffold', stepId } : undefined
+    case 'copySolution':
+    case 'copyScaffold': {
+      // `file` sert de clé dans `step.solution` ou `step.scaffold`, jamais à construire un chemin.
       const file = message['file']
       return typeof stepId === 'string' && typeof file === 'string'
-        ? { type: 'copySolution', stepId, file }
+        ? { type: message['type'], stepId, file }
         : undefined
     }
     default:

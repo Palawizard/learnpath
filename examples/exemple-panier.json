@@ -3,6 +3,18 @@
   "slug": "panier",
   "title": "Un panier d'achat avec total et remises",
   "intro": "On construit un panier utilisable dans une boutique : ajouter des articles, calculer un total, appliquer un code promo. Cinq étapes. À chaque étape tu écris le code, tu sauvegardes, et ça passe tout seul à la suite quand c'est bon.",
+  "scope": {
+    "covered": [
+      "Créer un panier vide",
+      "Ajouter un article en regroupant les quantités",
+      "Calculer le total arrondi",
+      "Déclarer et appliquer des codes promo"
+    ],
+    "notCovered": [
+      "L'affichage du panier dans une page",
+      "La persistance du panier (localStorage, serveur)"
+    ]
+  },
   "runner": {
     "kind": "vitest",
     "cwd": ".",
@@ -21,6 +33,13 @@
       "id": "1.1",
       "title": "Créer un panier vide",
       "explanation": "On commence par la structure de données. Un choix important ici : le panier est **immuable**. Aucune fonction ne modifie le panier reçu, elles en retournent une copie modifiée.\n\nC'est plus verbeux, mais ça évite la catégorie de bugs la plus pénible en front : deux composants qui partagent le même objet et se marchent dessus. Le prix à payer est un `...spread` de temps en temps.",
+      "examples": [
+        {
+          "title": "Une fonction qui retourne un objet littéral",
+          "code": "export function createPoint() {\n  return { x: 0, y: 0 }\n}\n\nconst a = createPoint()\nconst b = createPoint()\nconsole.log(a === b) // false : deux objets distincts",
+          "explanation": "- `export function nom() { ... }` déclare une fonction importable depuis un autre fichier.\n- `{ x: 0, y: 0 }` est un **objet littéral** : des paires `clé: valeur` entre accolades.\n- `[]` est un tableau vide, `null` veut dire « pas de valeur ».\n- Un littéral écrit *dans* la fonction crée un nouvel objet à chaque appel."
+        }
+      ],
       "expected": {
         "files": [
           "src/panier.js"
@@ -41,6 +60,9 @@
         "Le deuxième test échoue si tu retournes une constante définie en dehors de la fonction.",
         "La fonction doit construire l'objet littéral à l'intérieur de son corps."
       ],
+      "scaffold": {
+        "src/panier.js": "// TODO : exporte une fonction createPanier sans paramètre\n// qui retourne un objet avec lignes (tableau vide) et promo (null)\n"
+      },
       "solution": {
         "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n"
       }
@@ -49,6 +71,13 @@
       "id": "1.2",
       "title": "Ajouter un article",
       "explanation": "`addItem` reçoit un panier et retourne un nouveau panier avec l'article en plus. Le point subtil : si l'article est déjà présent, on n'ajoute pas une deuxième ligne, on augmente la quantité de la ligne existante.\n\nC'est le comportement que tout le monde attend d'un panier, et c'est presque toujours oublié à la première implémentation.",
+      "examples": [
+        {
+          "title": "Copier un objet ou un tableau en changeant une partie",
+          "code": "const user = { nom: 'Ada', age: 36 }\nconst plusVieux = { ...user, age: user.age + 1 }\n\nconst notes = [12, 15]\nconst avecUneNote = [...notes, 18]\n\nconst doublees = notes.map((n) => (n === 12 ? n * 2 : n)) // [24, 15]\nconst aUnDix = notes.some((n) => n === 10) // false",
+          "explanation": "- `{ ...user, age: 37 }` copie toutes les clés de `user`, puis remplace `age`.\n- `[...notes, 18]` crée un **nouveau** tableau avec un élément de plus.\n- `map` transforme chaque élément et renvoie un nouveau tableau.\n- `some` répond `true` dès qu'un élément vérifie la condition.\n- `condition ? a : b` choisit une valeur selon la condition."
+        }
+      ],
       "expected": {
         "files": [
           "src/panier.js"
@@ -70,6 +99,9 @@
         "`findIndex` te dit où elle est, ou -1 si absente.",
         "Pour le cas 'déjà présent', `map` sur les lignes en remplaçant celle qui matche est plus court qu'un splice."
       ],
+      "scaffold": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  // TODO : la ligne de cet article existe-t-elle déjà ? (some)\n  // TODO : si oui, nouvelles lignes avec qty augmentée (map)\n  //        sinon, nouvelles lignes avec { item, qty } à la fin (...spread)\n  // TODO : retourne une copie du panier avec ces lignes\n}\n"
+      },
       "solution": {
         "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n"
       }
@@ -78,6 +110,13 @@
       "id": "1.3",
       "title": "Calculer le total",
       "explanation": "Une somme sur les lignes. L'occasion d'utiliser `reduce`, qui est l'outil naturel dès qu'on veut réduire une liste à une seule valeur.\n\nAttention au piège des centimes : `0.1 + 0.2` ne fait pas `0.3` en JavaScript. Le test t'oblige à arrondir à deux décimales.",
+      "examples": [
+        {
+          "title": "Réduire une liste à un nombre avec reduce",
+          "code": "const achats = [{ prix: 2.5, qte: 2 }, { prix: 1, qte: 3 }]\nconst depense = achats.reduce((acc, a) => acc + a.prix * a.qte, 0) // 8\n\nconst arrondi = Math.round((0.1 + 0.2) * 100) / 100 // 0.3",
+          "explanation": "- `reduce((acc, element) => nouvelAcc, valeurInitiale)` parcourt le tableau en gardant un accumulateur.\n- La valeur initiale (`0`) est ce que renvoie `reduce` sur un tableau vide.\n- `Math.round(x * 100) / 100` arrondit à deux décimales."
+        }
+      ],
       "expected": {
         "files": [
           "src/panier.js"
@@ -99,6 +138,9 @@
         "Sans arrondi, le troisième test te renvoie 0.30000000000000004.",
         "`Math.round(x * 100) / 100` suffit ici."
       ],
+      "scaffold": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function total(panier) {\n  // TODO : somme de prix × qty sur les lignes (reduce, valeur initiale 0)\n  // TODO : retourne la somme arrondie à deux décimales\n}\n"
+      },
       "solution": {
         "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function total(panier) {\n  const brut = panier.lignes.reduce((acc, l) => acc + l.item.prix * l.qty, 0)\n  return Math.round(brut * 100) / 100\n}\n"
       }
@@ -107,6 +149,13 @@
       "id": "1.4",
       "title": "Déclarer les codes promo",
       "explanation": "Avant d'appliquer une remise, il faut savoir lesquelles existent. On les met dans un objet exporté, indexé par code.\n\nPourquoi un objet et pas une suite de `if` dans `applyPromo` ? Parce qu'ajouter un code promo devient une ligne de données au lieu d'une modification de logique. C'est la différence entre du code qu'on étend et du code qu'on rouvre à chaque changement.",
+      "examples": [
+        {
+          "title": "Un objet exporté qui sert de table de données",
+          "code": "export const TAILLES = {\n  S: { largeur: 40, hauteur: 60 },\n  M: { largeur: 50, hauteur: 70 },\n}\n\nconsole.log(TAILLES.M.largeur) // 50\nconsole.log(TAILLES['S']) // { largeur: 40, hauteur: 60 }",
+          "explanation": "- `export const` exporte une valeur, pas une fonction.\n- Chaque clé (`S`, `M`) donne accès à un objet imbriqué.\n- `TAILLES[code]` lit la clé dont le nom est dans la variable `code`."
+        }
+      ],
       "expected": {
         "files": [
           "src/panier.js"
@@ -126,6 +175,9 @@
         "C'est une simple constante exportée, pas une fonction.",
         "Les clés sont les codes eux-mêmes."
       ],
+      "scaffold": {
+        "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function total(panier) {\n  const brut = panier.lignes.reduce((acc, l) => acc + l.item.prix * l.qty, 0)\n  return Math.round(brut * 100) / 100\n}\n\nexport const PROMOS = {\n  // TODO : PROMO10 → { type: 'percent', valeur: 10 }\n  // TODO : MOINS5 → { type: 'fixed', valeur: 5 }\n}\n"
+      },
       "solution": {
         "src/panier.js": "export function createPanier() {\n  return { lignes: [], promo: null }\n}\n\nexport function addItem(panier, item, qty = 1) {\n  const existe = panier.lignes.some((l) => l.item.id === item.id)\n  const lignes = existe\n    ? panier.lignes.map((l) =>\n        l.item.id === item.id ? { ...l, qty: l.qty + qty } : l\n      )\n    : [...panier.lignes, { item, qty }]\n  return { ...panier, lignes }\n}\n\nexport function total(panier) {\n  const brut = panier.lignes.reduce((acc, l) => acc + l.item.prix * l.qty, 0)\n  return Math.round(brut * 100) / 100\n}\n\nexport const PROMOS = {\n  PROMO10: { type: 'percent', valeur: 10 },\n  MOINS5: { type: 'fixed', valeur: 5 },\n}\n"
       }
@@ -134,6 +186,13 @@
       "id": "1.5",
       "title": "Appliquer la remise",
       "explanation": "Dernière étape, et la plus riche. `applyPromo` valide le code puis le stocke, et `total` doit maintenant en tenir compte.\n\nDeux règles métier que les tests imposent : un code inconnu est ignoré silencieusement plutôt que de lever une exception, et un total ne descend jamais sous zéro. Ce genre de garde-fou est ce qui sépare une fonction qui marche en démo d'une fonction qui tient en production.",
+      "examples": [
+        {
+          "title": "Chercher une clé et choisir un calcul",
+          "code": "const TVA = { reduit: 5.5, normal: 20 }\n\nfunction prixTTC(ht, taux) {\n  const valeur = TVA[taux] ? TVA[taux] : 0\n  let ttc = ht\n  if (valeur > 0) ttc = ht * (1 + valeur / 100)\n  return Math.max(0, ttc)\n}",
+          "explanation": "- `TVA[taux]` vaut `undefined` si la clé n'existe pas : `TVA[taux] ? ... : ...` teste son existence.\n- `let` déclare une variable qu'on peut réassigner, `const` non.\n- `Math.max(0, x)` empêche une valeur négative.\n- `promo?.type` lit `type` seulement si `promo` n'est pas `null` ou `undefined`."
+        }
+      ],
       "expected": {
         "files": [
           "src/panier.js"

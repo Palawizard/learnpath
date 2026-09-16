@@ -1,4 +1,5 @@
 import { escapeHtml } from './render.js'
+import { LANGUAGE_LEVELS, LEVELS } from '../core/prompt.js'
 
 /**
  * Page du générateur de prompt. Sans `vscode`, comme `render.ts` : c'est ce qui la rend
@@ -32,11 +33,21 @@ ${notice === undefined ? '' : `<p class="notice">${escapeHtml(notice)}</p>`}
   <textarea id="feature" rows="4" required
     placeholder="Un panier d'achat : ajouter, retirer, calculer le total"></textarea>
 
-  <label for="level">Ton niveau</label>
+  <label for="level">Ton niveau en programmation</label>
   <select id="level">
-    <option value="débutant">débutant</option>
-    <option value="intermédiaire" selected>intermédiaire</option>
+${options(LEVELS, 'intermédiaire')}
   </select>
+
+  <label for="languageLevel">Ton niveau dans le langage ou le framework du projet</label>
+  <select id="languageLevel" aria-describedby="languageLevel-help">
+${options(LANGUAGE_LEVELS, 'je découvre la syntaxe')}
+  </select>
+  <p id="languageLevel-help" class="muted help">C'est lui qui décide si le parcours te montre la
+  syntaxe avec des exemples, et la taille des étapes. On peut être à l'aise en Python et
+  découvrir React.</p>
+
+  <label for="known">Ce que tu connais déjà <span class="muted">— facultatif</span></label>
+  <input id="known" type="text" placeholder="les fonctions et les tableaux en JS, pas encore les hooks">
 
   <label for="files">Fichiers ou dossiers concernés <span class="muted">— facultatif</span></label>
   <input id="files" type="text" placeholder="src/panier/, src/types.ts">
@@ -55,6 +66,12 @@ ${notice === undefined ? '' : `<p class="notice">${escapeHtml(notice)}</p>`}
 <script nonce="${nonce}">${SCRIPT}</script>
 </body>
 </html>`
+}
+
+function options(values: readonly string[], selected: string): string {
+  return values
+    .map((value) => `    <option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(value)}</option>`)
+    .join('\n')
 }
 
 const STYLE = `
@@ -86,6 +103,7 @@ p { margin: 0 0 0.75rem; }
   padding: 0.5rem 0.75rem;
 }
 label { display: block; margin: 1rem 0 0.25rem; }
+.help { margin: 0.25rem 0 0; font-size: 0.92em; }
 textarea, input, select {
   width: 100%;
   box-sizing: border-box;
@@ -149,6 +167,8 @@ document.getElementById('form').addEventListener('submit', (event) => {
     type: 'compose',
     feature: document.getElementById('feature').value,
     level: document.getElementById('level').value,
+    languageLevel: document.getElementById('languageLevel').value,
+    known: document.getElementById('known').value,
     files: document.getElementById('files').value,
   });
 });

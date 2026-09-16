@@ -33,6 +33,7 @@ function state(overrides: Partial<ParcoursState> = {}): ParcoursState {
     currentStepId: '1.2',
     hintsRevealed: {},
     solutionsRevealed: [],
+    scaffoldsRevealed: [],
     startedAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -75,10 +76,10 @@ describe('buildViewModel — position et progression', () => {
     expect(model?.percent).toBe(100)
     expect(model?.finished).toBe(true)
     expect(model?.recap).toEqual([
-      { id: '1.1', title: 'Titre 1.1', hints: 0, solution: false },
-      { id: '1.2', title: 'Titre 1.2', hints: 2, solution: false },
-      { id: '1.3', title: 'Titre 1.3', hints: 0, solution: true },
-      { id: '1.4', title: 'Titre 1.4', hints: 0, solution: false },
+      { id: '1.1', title: 'Titre 1.1', hints: 0, solution: false, scaffold: false },
+      { id: '1.2', title: 'Titre 1.2', hints: 2, solution: false, scaffold: false },
+      { id: '1.3', title: 'Titre 1.3', hints: 0, solution: true, scaffold: false },
+      { id: '1.4', title: 'Titre 1.4', hints: 0, solution: false, scaffold: false },
     ])
   })
 
@@ -112,7 +113,10 @@ describe('buildViewModel — indices', () => {
   it('marque la solution révélée et en porte le contenu, fichier par fichier', () => {
     const model = buildViewModel(parcours, state({ solutionsRevealed: ['1.2'] }))
     expect(model?.solutionRevealed).toBe(true)
-    expect(model?.solution).toEqual([{ file: 'src/panier.js', content: '// solution' }])
+    // Le fichier existait déjà à l'étape 1.1 : la solution porte aussi ce que l'étape change.
+    expect(model?.solution).toEqual([
+      { file: 'src/panier.js', content: '// solution', diff: [{ kind: 'same', text: '// solution' }] },
+    ])
   })
 
   it('ne pousse pas la solution tant qu\'elle n\'est pas révélée', () => {
@@ -312,5 +316,62 @@ describe('relecture d\'une étape passée', () => {
     expect(model?.finished).toBe(false)
     expect(model?.recap).toEqual([])
     expect(model?.readOnly).toBe(true)
+  })
+})
+
+describe('buildViewModel — aides à l’apprentissage (D40 à D42)', () => {
+  const guided: Parcours = {
+    ...parcours,
+    intro: 'On construit un panier.',
+    scope: { covered: ['le panier'], notCovered: ['la page'] },
+    steps: [
+      step('1.1', { solution: { 'src/panier.js': 'a\n' } }),
+      step('1.2', {
+        examples: [{ title: 'Un exemple', code: 'const x = 1' }],
+        tests: { file: '.learn/tests/step-1.2.spec.js', grep: 'step 1.2', content: 'le test' },
+        scaffold: { 'src/panier.js': 'a\n// TODO\n' },
+        solution: { 'src/panier.js': 'a\nb\n' },
+      }),
+      step('1.3', { expected: { files: ['src/neuf.js'] }, solution: { 'src/neuf.js': 'n\n' } }),
+    ],
+  }
+
+  it('porte l’intro, le périmètre, les exemples et le test de l’étape', () => {
+    const model = buildViewModel(guided, state())
+    expect(model?.intro).toBe('On construit un panier.')
+    expect(model?.scope?.notCovered).toEqual(['la page'])
+    expect(model?.examples).toEqual([{ title: 'Un exemple', code: 'const x = 1' }])
+    expect(model?.test).toEqual({ file: '.learn/tests/step-1.2.spec.js', content: 'le test' })
+  })
+
+  it('ne pousse le squelette qu’une fois demandé, avec ce qu’il change', () => {
+    expect(buildViewModel(guided, state())?.scaffoldAvailable).toBe(true)
+    expect(buildViewModel(guided, state())?.scaffold).toEqual([])
+    const model = buildViewModel(guided, state({ scaffoldsRevealed: ['1.2'] }))
+    expect(model?.scaffoldRevealed).toBe(true)
+    expect(model?.scaffold[0]?.diff?.map((line) => line.kind)).toEqual(['same', 'add'])
+  })
+
+  it('la solution d’un fichier modifié porte le diff, celle d’un fichier neuf non', () => {
+    const modified = buildViewModel(guided, state({ solutionsRevealed: ['1.2'] }))
+    expect(modified?.solution[0]?.diff).toEqual([
+      { kind: 'same', text: 'a' },
+      { kind: 'add', text: 'b' },
+    ])
+    const created = buildViewModel(guided, state({ currentStepId: '1.3', solutionsRevealed: ['1.3'] }))
+    expect(created?.solution[0]?.diff).toBeUndefined()
+  })
+
+  it('signale deux solutions affichées de suite, pas une seule', () => {
+    expect(buildViewModel(guided, state({ solutionsRevealed: ['1.2'] }))?.pacingNotice).toBe(false)
+    expect(buildViewModel(guided, state({ solutionsRevealed: ['1.1', '1.2'] }))?.pacingNotice).toBe(true)
+  })
+
+  it('note le squelette dans le récapitulatif', () => {
+    const model = buildViewModel(
+      guided,
+      state({ currentStepId: '1.3', completedAt: '2026-01-02T00:00:00.000Z', scaffoldsRevealed: ['1.2'] })
+    )
+    expect(model?.recap.map((r) => r.scaffold)).toEqual([false, true, false])
   })
 })

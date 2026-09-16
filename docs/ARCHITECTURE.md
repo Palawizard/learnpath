@@ -23,10 +23,12 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 | `parcours.ts` | Types du parcours, chargement, validation via JSON Schema |
 | `importer.ts` | Écrit `.learn/`, les tests, la config Vitest, joue `setup` |
 | `verify.ts` | Vérifications d'import : « tout doit être rouge » (D5) et « les solutions cumulées doivent tout laisser vert », dans une copie temporaire du workspace (D21) |
-| `reveal.ts` | Indice suivant, marquage de la solution comme révélée ; `planSolution`, qui n'écrit plus que pour `verify.ts` (D34) |
+| `reveal.ts` | Indice suivant, squelette affiché (D41), marquage de la solution comme révélée ; `planSolution`, qui n'écrit plus que pour `verify.ts` (D34) |
 | `reset.ts` | Recommencer depuis l'étape 1, ou nettoyer `.learn/` en gardant les parcours JSON générés (D23, D38) |
 | `git.ts` | Plomberie git : commit dans un index temporaire, références `refs/learnpath*`, restauration de chemins. Ne touche jamais HEAD, la branche ni l'index (D36) |
 | `redo.ts` | Refaire une étape validée : disponibilité, point de restauration par étape, plan de reprise et application (D36) |
+| `pedagogy.ts` | Règles pédagogiques d'import : `scope` présent, un exemple par étape qui ne recopie pas la solution, au plus 20 lignes par étape ; `contentBefore` (D40 à D42) |
+| `diff.ts` | Diff ligne à ligne et comptage des lignes significatives, pour la solution en diff et la taille des étapes (D41) |
 | `prompt.ts` | Compose le prompt de génération depuis le gabarit unique `prompts/generer-parcours.md`, qui lui est passé en argument (D37) |
 | `humanize.ts` | Traduction des formes d'erreur Vitest fréquentes, sans jamais masquer le brut (D22) |
 | `state.ts` | Lecture/écriture de `.learn/state.json`, progression, solutions révélées |
@@ -73,8 +75,9 @@ Sans framework. Le rendu est séparé de `vscode` pour être testable (**D20**) 
 | `webview/panel.ts` | Le reste, c'est-à-dire `vscode` (fournisseur de la vue `learnpath.parcours`) | oui |
 | `webview/prompt-panel.ts` | Onglet d'éditeur du générateur de prompt : lit le gabarit livré, compose, copie | oui |
 
-Affiche : titre, compteur `Étape n/N`, barre de progression, explication en markdown,
-bloc « Attendu », indices progressifs, bouton Solution, zone d'état `aria-live`, bandeau
+Affiche : titre, compteur `Étape n/N`, barre de progression, « À propos » (intro et
+périmètre), explication en markdown, exemples de syntaxe, bloc « Attendu » avec le test
+repliable, indices progressifs, squelette, solution en diff, bouton Solution, zone d'état `aria-live`, bandeau
 de régression séparé, récapitulatif de fin.
 
 ## Flux : de la sauvegarde à l'étape suivante

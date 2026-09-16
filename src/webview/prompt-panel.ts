@@ -58,8 +58,10 @@ async function handle(
   if (message['type'] !== 'compose') return
   const feature = message['feature']
   const level = message['level']
+  const languageLevel = message['languageLevel']
+  const known = message['known']
   const files = message['files']
-  if (typeof feature !== 'string' || typeof level !== 'string') return
+  if (typeof feature !== 'string' || typeof level !== 'string' || typeof languageLevel !== 'string') return
 
   let template: string
   try {
@@ -76,6 +78,8 @@ async function handle(
   const composed = composePrompt(template, {
     feature,
     level,
+    languageLevel,
+    known: typeof known === 'string' ? known : undefined,
     files: typeof files === 'string' ? files : undefined,
   })
   void panel.webview.postMessage(

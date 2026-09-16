@@ -9,7 +9,7 @@ import {
   runCurrentStep,
 } from './core/progression'
 import { applyTestsMove, detectTestsDir, planTestsMove } from './core/finish'
-import { revealCurrentSolution, revealNextHint } from './core/reveal'
+import { revealCurrentScaffold, revealCurrentSolution, revealNextHint } from './core/reveal'
 import { applyRedo, planRedo, validatedCount } from './core/redo'
 import { buildViewModel } from './core/viewmodel'
 import type { RedoView } from './core/viewmodel'
@@ -123,8 +123,21 @@ export class Watcher implements vscode.Disposable {
       return
     }
 
-    if (message.type === 'copySolution') {
-      await this.copySolution(message.file)
+    if (message.type === 'copySolution' || message.type === 'copyScaffold') {
+      await this.copyFile(message.type === 'copySolution' ? 'solution' : 'scaffold', message.file)
+      return
+    }
+
+    // Le squelette est une aide intermédiaire : pas de confirmation, il ne donne pas la
+    // réponse. Il est tout de même noté, comme les indices, pour le récapitulatif.
+    if (message.type === 'revealScaffold') {
+      const revealed = await revealCurrentScaffold(this.session)
+      if (!revealed.ok) {
+        this.log(revealed.error)
+        return
+      }
+      this.session = revealed.value
+      this.refresh()
       return
     }
 
@@ -256,10 +269,13 @@ export class Watcher implements vscode.Disposable {
   }
 
   /** Le presse-papiers de l'hôte : la webview n'a pas à demander la permission. */
-  private async copySolution(file: string): Promise<void> {
+  private async copyFile(kind: 'solution' | 'scaffold', file: string): Promise<void> {
     const stepId = this.session.state.currentStepId
     const step = this.session.parcours.steps.find((s) => s.id === stepId)
-    const content = step?.solution[file]
+    // On ne copie que ce qui est déjà affiché : un message forgé ne révèle rien de plus.
+    const shown = kind === 'solution' ? this.session.state.solutionsRevealed : this.session.state.scaffoldsRevealed
+    if (!shown.includes(stepId)) return
+    const content = kind === 'solution' ? step?.solution[file] : step?.scaffold?.[file]
     if (content === undefined) return
     await vscode.env.clipboard.writeText(content)
     void vscode.window.setStatusBarMessage(`LearnPath — ${file} copié`, 3000)

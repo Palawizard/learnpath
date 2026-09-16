@@ -1,4 +1,6 @@
-import type { Parcours, Step } from './parcours.js'
+import type { Parcours, Scope, Step, StepExample } from './parcours.js'
+import { type DiffLine, diffLines } from './diff.js'
+import { contentBefore } from './pedagogy.js'
 import type { Outcome, Regression } from './progression.js'
 import type { ParcoursState } from './state.js'
 import type { Classification } from '../runner/classify.js'
@@ -39,8 +41,20 @@ export interface RegressionView {
   readonly explained?: string
 }
 
-/** Un fichier de la solution, tel qu'il s'affiche dans le panneau (D34). */
+/** Un fichier de la solution ou du squelette, tel qu'il s'affiche dans le panneau (D34). */
 export interface SolutionFileView {
+  readonly file: string
+  /** Le fichier complet : c'est lui qui est copié. */
+  readonly content: string
+  /**
+   * Ce que l'étape change par rapport au fichier d'avant elle (D41). Absent quand le fichier
+   * est créé par l'étape : tout est nouveau, le diff n'apprendrait rien de plus.
+   */
+  readonly diff?: readonly DiffLine[]
+}
+
+/** Le test de l'étape, montré tel quel : les textes et rôles exacts n'ont plus à se deviner. */
+export interface TestSourceView {
   readonly file: string
   readonly content: string
 }
@@ -71,6 +85,7 @@ export interface RecapStepView {
   readonly title: string
   readonly hints: number
   readonly solution: boolean
+  readonly scaffold: boolean
 }
 
 export interface ViewModel {
@@ -84,6 +99,14 @@ export interface ViewModel {
   readonly percent: number
   /** Markdown brut, tel qu'il vient du parcours. Le rendu est fait par la webview. */
   readonly explanation: string
+  /** Intro et périmètre du parcours (D42). Montrés repliés, ouverts à la première étape. */
+  readonly intro?: string
+  readonly scope?: Scope
+  /** Exemples résolus de la syntaxe de l'étape (D40). */
+  readonly examples: readonly StepExample[]
+  /** Fichier dont l'extension sert à colorer les exemples. */
+  readonly languageFile: string
+  readonly test: TestSourceView
   readonly expectedFiles: readonly string[]
   readonly contract?: string
   readonly acceptance: readonly string[]
@@ -96,6 +119,16 @@ export interface ViewModel {
    * ne pousse pas au panneau ce que l'utilisateur n'a pas demandé à voir.
    */
   readonly solution: readonly SolutionFileView[]
+  /** L'étape a un squelette à proposer (D41). */
+  readonly scaffoldAvailable: boolean
+  readonly scaffoldRevealed: boolean
+  /** Vide tant que le squelette n'est pas affiché. */
+  readonly scaffold: readonly SolutionFileView[]
+  /**
+   * La solution de cette étape **et** de la précédente ont été affichées : les étapes sont
+   * peut-être trop grosses pour le niveau choisi. Le panneau le dit, sans juger.
+   */
+  readonly pacingNotice: boolean
   readonly status: StatusView
   /**
    * Un run est en cours (le debounce est passé). Ce qui est affiché dans la zone d'état
@@ -156,6 +189,9 @@ export function buildViewModel(
   const index = reviewing ? asked : current
   const step = parcours.steps[index]
   if (step === undefined) return undefined
+  const solutionRevealed = state.solutionsRevealed.includes(step.id)
+  const scaffoldRevealed = state.scaffoldsRevealed.includes(step.id)
+  const previous = parcours.steps[index - 1]
 
   return {
     parcoursTitle: parcours.title,
@@ -165,13 +201,23 @@ export function buildViewModel(
     total,
     percent: Math.round((done / total) * 100),
     explanation: step.explanation,
+    ...(parcours.intro === undefined ? {} : { intro: parcours.intro }),
+    ...(parcours.scope === undefined ? {} : { scope: parcours.scope }),
+    examples: step.examples ?? [],
+    languageFile: step.expected.files[0] ?? '',
+    test: { file: step.tests.file, content: step.tests.content },
     expectedFiles: step.expected.files,
     ...(step.expected.contract === undefined ? {} : { contract: step.expected.contract }),
     acceptance: step.expected.acceptance ?? [],
     hints: revealedHints(step, state),
     hintsRemaining: reviewing ? 0 : (step.hints?.length ?? 0) - (state.hintsRevealed[step.id] ?? 0),
-    solutionRevealed: state.solutionsRevealed.includes(step.id),
-    solution: state.solutionsRevealed.includes(step.id) ? solutionFiles(step) : [],
+    solutionRevealed,
+    solution: solutionRevealed ? filesView(parcours, index, step.solution) : [],
+    scaffoldAvailable: Object.keys(step.scaffold ?? {}).length > 0,
+    scaffoldRevealed,
+    scaffold: scaffoldRevealed ? filesView(parcours, index, step.scaffold ?? {}) : [],
+    pacingNotice:
+      !reviewing && solutionRevealed && previous !== undefined && state.solutionsRevealed.includes(previous.id),
     // La zone d'état décrit le dernier run, donc l'étape courante : l'afficher à côté
     // d'une étape passée la ferait lire comme le résultat de celle-là.
     status: reviewing ? { kind: 'none', summary: '', advanced: false } : statusOf(outcome),
@@ -205,8 +251,15 @@ function revealedHints(step: Step, state: ParcoursState): readonly string[] {
   return (step.hints ?? []).slice(0, state.hintsRevealed[step.id] ?? 0)
 }
 
-function solutionFiles(step: Step): readonly SolutionFileView[] {
-  return Object.entries(step.solution).map(([file, content]) => ({ file, content }))
+function filesView(
+  parcours: Parcours,
+  index: number,
+  files: Readonly<Record<string, string>>
+): readonly SolutionFileView[] {
+  return Object.entries(files).map(([file, content]) => {
+    const before = contentBefore(parcours, index, file)
+    return before === '' ? { file, content } : { file, content, diff: diffLines(before, content) }
+  })
 }
 
 function recapView(step: Step, state: ParcoursState): RecapStepView {
@@ -215,6 +268,7 @@ function recapView(step: Step, state: ParcoursState): RecapStepView {
     title: step.title,
     hints: state.hintsRevealed[step.id] ?? 0,
     solution: state.solutionsRevealed.includes(step.id),
+    scaffold: state.scaffoldsRevealed.includes(step.id),
   }
 }
 

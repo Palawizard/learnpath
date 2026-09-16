@@ -56,6 +56,9 @@ interface ParcoursBrut {
   steps: Array<{
     tests: { grep: string; file: string }
     expected: { files: string[] }
+    scaffold?: Record<string, string>
+    solution: Record<string, string>
+    examples?: Array<{ title: string; code?: string }>
     bonus?: string
   }>
 }
@@ -130,6 +133,24 @@ describe('loadParcours — messages exploitables', () => {
   it('refuse un cwd qui sort du projet', () => {
     expect(casse((p) => (p.runner.cwd = '../ailleurs'))).toMatch(
       /Runner, champ cwd : le chemin remonte hors du projet/
+    )
+  })
+
+  it('refuse un squelette sur un fichier non déclaré par l’étape', () => {
+    expect(casse((p) => (etape(p, 1).scaffold = { 'src/autre.js': '// TODO' }))).toMatch(
+      /Étape 1\.2 : le squelette porte sur « src\/autre\.js », qui n'est pas listé dans expected\.files/
+    )
+  })
+
+  it('refuse un squelette identique à la solution', () => {
+    expect(
+      casse((p) => (etape(p, 1).scaffold = { 'src/panier.js': etape(p, 1).solution['src/panier.js'] ?? '' }))
+    ).toMatch(/Étape 1\.2 : le squelette de « src\/panier\.js » est identique à la solution/)
+  })
+
+  it('refuse un exemple sans code', () => {
+    expect(casse((p) => (etape(p, 0).examples = [{ title: 'vide' }]))).toMatch(
+      /Étape 1\.1 : le champ « code » est obligatoire/
     )
   })
 

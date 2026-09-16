@@ -2,7 +2,7 @@ import { type Result, ok, err } from './result.js'
 import { type ResolvedPath, safeResolve } from './paths.js'
 import type { Step } from './parcours.js'
 import { type Session, currentStep } from './progression.js'
-import { revealHint, revealSolution, writeState } from './state.js'
+import { revealHint, revealScaffold, revealSolution, writeState } from './state.js'
 
 /**
  * Les deux gestes de l'utilisateur qui touchent le state depuis le panneau. Ils sont ici
@@ -81,6 +81,25 @@ export async function revealCurrentSolution(session: Session): Promise<Result<Se
   }
 
   const state = revealSolution(session.state, step.id)
+  await writeState(session.stateFile, state)
+  return ok({ ...session, state })
+}
+
+/**
+ * Affiche le squelette de l'étape courante (D41) : le fichier avec des trous, à recopier.
+ * Comme la solution, rien n'est écrit dans le code de l'utilisateur ; seul le state note
+ * que le squelette a été vu.
+ */
+export async function revealCurrentScaffold(session: Session): Promise<Result<Session>> {
+  const step = currentStep(session)
+  if (step === undefined) {
+    return err(`L'étape « ${session.state.currentStepId} » n'existe pas dans le parcours.`)
+  }
+  if (Object.keys(step.scaffold ?? {}).length === 0) {
+    return err(`L'étape ${step.id} n'a pas de squelette.`)
+  }
+
+  const state = revealScaffold(session.state, step.id)
   await writeState(session.stateFile, state)
   return ok({ ...session, state })
 }

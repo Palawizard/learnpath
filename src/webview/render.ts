@@ -1,3 +1,5 @@
+import type { DiffLine } from '../core/diff.js'
+import type { Scope, StepExample } from '../core/parcours.js'
 import type {
   RecapStepView,
   RedoView,
@@ -18,17 +20,25 @@ import { renderMarkdown } from './markdown.js'
 export function renderMain(model: ViewModel): string {
   // Fin de parcours : l'énoncé de la dernière étape n'intéresse plus personne, et le
   // laisser au-dessus du récapitulatif donne un écran de fin qui ressemble à une étape.
-  if (model.finished) return [renderRecap(model.recap), renderReviewEntry(model)].join('\n')
+  if (model.finished) {
+    return [renderRecap(model.recap), renderNotCovered(model.scope), renderReviewEntry(model)]
+      .filter((block) => block !== '')
+      .join('\n')
+  }
 
   return [
     // La relecture s'annonce avant l'énoncé : on doit savoir qu'on lit une étape passée
     // avant de lire quoi que ce soit d'autre.
     model.readOnly ? renderReviewNotice(model) : '',
+    renderAbout(model),
     `<h2 class="step-title">${escapeHtml(model.stepTitle)}</h2>`,
     `<div class="explanation">${renderMarkdown(model.explanation)}</div>`,
+    renderExamples(model.examples, model.languageFile),
     renderExpected(model),
     renderHints(model),
+    renderScaffold(model),
     renderSolution(model),
+    renderPacing(model),
     model.review === undefined ? renderActions(model) : renderReviewActions(model.review),
     model.review === undefined ? '' : renderRedo(model.review.redo),
   ]
@@ -100,6 +110,66 @@ export function renderWelcome(): string {
 
 // --- Blocs -----------------------------------------------------------------------------
 
+/**
+ * Intro et périmètre du parcours (D42). Ouvert à la première étape, replié ensuite : on
+ * doit savoir dès le départ ce que le parcours **ne** couvre **pas**, sans le relire à
+ * chaque étape.
+ */
+function renderAbout(model: ViewModel): string {
+  if (model.intro === undefined && model.scope === undefined) return ''
+  const open = model.position === 1 && !model.readOnly ? ' open' : ''
+  const parts = [`<details class="card about"${open}><summary>À propos de ce parcours</summary>`]
+  if (model.intro !== undefined) parts.push(`<div class="intro">${renderMarkdown(model.intro)}</div>`)
+  if (model.scope !== undefined) {
+    parts.push(`<h3>Ce que le parcours couvre</h3>${list(model.scope.covered)}`)
+    parts.push(
+      model.scope.notCovered.length === 0
+        ? `<p class="muted">Rien de ta demande n’est laissé de côté.</p>`
+        : `<h3>Ce qu’il ne couvre pas</h3>${list(model.scope.notCovered)}`
+    )
+  }
+  parts.push(`</details>`)
+  return parts.join('')
+}
+
+function renderNotCovered(scope: Scope | undefined): string {
+  if (scope === undefined || scope.notCovered.length === 0) return ''
+  return [
+    `<section class="card about"><h3>Reste à faire, hors de ce parcours</h3>`,
+    list(scope.notCovered),
+    `<p class="muted">Tu peux générer un parcours pour la suite depuis « Générer le prompt ».</p>`,
+    `</section>`,
+  ].join('')
+}
+
+function list(items: readonly string[]): string {
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+}
+
+/**
+ * Exemples résolus (D40) : la syntaxe de l'étape, écrite, sur un autre sujet. C'est ce qui
+ * manquait pour apprendre un langage : une explication du pourquoi ne montre pas comment
+ * on l'écrit.
+ */
+function renderExamples(examples: readonly StepExample[], languageFile: string): string {
+  if (examples.length === 0) return ''
+  const blocks = examples.map((example) =>
+    [
+      `<div class="example">`,
+      `<h4>${escapeHtml(example.title)}</h4>`,
+      `<pre class="code"><code>${highlight(languageFile, example.code)}</code></pre>`,
+      example.explanation === undefined ? '' : `<div class="example-notes">${renderMarkdown(example.explanation)}</div>`,
+      `</div>`,
+    ].join('')
+  )
+  return [
+    `<section class="card examples"><h3>${examples.length > 1 ? 'Exemples' : 'Exemple'} de syntaxe</h3>`,
+    `<p class="muted">Sur un autre sujet que l’étape : à toi de transposer.</p>`,
+    blocks.join(''),
+    `</section>`,
+  ].join('')
+}
+
 function renderExpected(model: ViewModel): string {
   const parts = [
     `<h3>Attendu</h3>`,
@@ -111,6 +181,16 @@ function renderExpected(model: ViewModel): string {
   if (model.acceptance.length > 0) {
     parts.push(
       `<ul class="acceptance">${model.acceptance.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>`
+    )
+  }
+  if (model.test.content !== '') {
+    parts.push(
+      [
+        `<details class="test-source"><summary>Ce que vérifie le test</summary>`,
+        `<code class="file">${escapeHtml(model.test.file)}</code>`,
+        `<pre class="code"><code>${highlight(model.test.file, model.test.content)}</code></pre>`,
+        `</details>`,
+      ].join('')
     )
   }
   return `<section class="card expected">${parts.join('\n')}</section>`
@@ -133,25 +213,89 @@ function renderHints(model: ViewModel): string {
  */
 function renderSolution(model: ViewModel): string {
   if (model.solution.length === 0) return ''
-  const blocks = model.solution.map(renderSolutionFile).join('')
+  const blocks = model.solution.map((file) => renderFile(file, 'copy')).join('')
   return [
     `<section class="card solution"><h3>Solution</h3>`,
-    `<p class="muted">À recopier toi-même : rien n'a été écrit dans tes fichiers.</p>`,
+    `<p class="muted">À recopier toi-même : rien n'a été écrit dans tes fichiers. « Copier » copie le fichier complet.</p>`,
     blocks,
     `</section>`,
   ].join('')
 }
 
-function renderSolutionFile(file: SolutionFileView): string {
+/** Le squelette (D41) : le fichier avec des trous, marche intermédiaire avant la solution. */
+function renderScaffold(model: ViewModel): string {
+  if (model.scaffold.length === 0) return ''
+  const blocks = model.scaffold.map((file) => renderFile(file, 'copyScaffold')).join('')
+  return [
+    `<section class="card scaffold"><h3>Squelette</h3>`,
+    `<p class="muted">La structure de l'étape, avec des <code>TODO</code> à compléter. Rien n'a été écrit dans tes fichiers.</p>`,
+    blocks,
+    `</section>`,
+  ].join('')
+}
+
+/**
+ * Un fichier à recopier. Quand l'étape modifie un fichier existant, on montre **ce qu'elle
+ * change** (D41) et le fichier complet se déplie à la demande : quinze lignes nouvelles
+ * noyées dans cent lignes connues ne s'apprennent pas.
+ */
+function renderFile(file: SolutionFileView, copyAction: 'copy' | 'copyScaffold'): string {
+  const full = `<pre class="code"><code>${highlight(file.file, file.content)}</code></pre>`
   return [
     `<div class="solution-file">`,
     `<div class="solution-head">`,
     `<code class="file">${escapeHtml(file.file)}</code>`,
-    `<button type="button" class="secondary" data-action="copy"`,
+    `<button type="button" class="secondary" data-action="${copyAction}"`,
     ` data-file="${escapeHtml(file.file)}">Copier</button>`,
     `</div>`,
-    `<pre class="code"><code>${highlight(file.file, file.content)}</code></pre>`,
+    file.diff === undefined
+      ? full
+      : [
+          `<p class="muted diff-legend">Ce que l’étape change dans le fichier :</p>`,
+          renderDiff(file.diff),
+          `<details class="full-file"><summary>Fichier complet</summary>${full}</details>`,
+        ].join(''),
     `</div>`,
+  ].join('')
+}
+
+/** Lignes de contexte gardées autour d'un changement ; le reste se résume en « ⋯ ». */
+const DIFF_CONTEXT = 2
+
+export function renderDiff(diff: readonly DiffLine[]): string {
+  const near = diff.map((line, i) => {
+    if (line.kind !== 'same') return true
+    for (let d = -DIFF_CONTEXT; d <= DIFF_CONTEXT; d++) {
+      const other = diff[i + d]
+      if (other !== undefined && other.kind !== 'same') return true
+    }
+    return false
+  })
+  const rows: string[] = []
+  let skipped = false
+  diff.forEach((line, i) => {
+    if (!near[i]) {
+      if (!skipped) rows.push(`<span class="diff-line skip">⋯</span>`)
+      skipped = true
+      return
+    }
+    skipped = false
+    const mark = line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' '
+    const label = line.kind === 'add' ? ' aria-label="ajoutée"' : line.kind === 'del' ? ' aria-label="retirée"' : ''
+    rows.push(`<span class="diff-line ${line.kind}"${label}>${mark} ${escapeHtml(line.text)}</span>`)
+  })
+  // Chaque ligne est un bloc : un saut de ligne en plus dans le <pre> la doublerait.
+  return `<pre class="code diff"><code>${rows.join('')}</code></pre>`
+}
+
+function renderPacing(model: ViewModel): string {
+  if (!model.pacingNotice) return ''
+  return [
+    `<section class="banner pacing">`,
+    `<p class="summary">Deux solutions affichées de suite.</p>`,
+    `<p class="muted">Les étapes sont peut-être trop grosses pour ton niveau. Tu peux régénérer le parcours `,
+    `en choisissant « je découvre la syntaxe » dans « Générer le prompt » : les étapes seront plus petites et mieux guidées.</p>`,
+    `</section>`,
   ].join('')
 }
 
@@ -162,9 +306,14 @@ function renderActions(model: ViewModel): string {
       ? `Indice (${model.hintsRemaining} restant${model.hintsRemaining > 1 ? 's' : ''})`
       : 'Plus d’indice'
   const solutionLabel = model.solutionRevealed ? 'Solution affichée' : 'Solution'
+  const scaffold = model.scaffoldAvailable
+    ? `<button type="button" class="secondary" data-action="scaffold"${model.scaffoldRevealed ? ' disabled' : ''}>${model.scaffoldRevealed ? 'Squelette affiché' : 'Squelette'}</button>`
+    : ''
+  // L'ordre des boutons est l'échelle d'aide : indice, squelette, solution (D41).
   return [
     `<div class="actions">`,
     `<button type="button" data-action="hint"${model.hintsRemaining > 0 ? '' : ' disabled'}>${escapeHtml(hintLabel)}</button>`,
+    scaffold,
     `<button type="button" class="secondary" data-action="solution"${model.solutionRevealed ? ' disabled' : ''}>${escapeHtml(solutionLabel)}</button>`,
     `</div>`,
     renderReviewEntry(model),
@@ -243,7 +392,9 @@ function renderRecap(recap: readonly RecapStepView[]): string {
     .map((step) => {
       const mark = step.solution
         ? 'solution affichée'
-        : step.hints > 0
+        : step.scaffold
+          ? 'squelette affiché'
+          : step.hints > 0
           ? `${step.hints} indice${step.hints > 1 ? 's' : ''}`
           : 'sans aide'
       return `<li><strong>${escapeHtml(step.id)}</strong> ${escapeHtml(step.title)} <span class="muted">— ${escapeHtml(mark)}</span></li>`
@@ -302,19 +453,20 @@ function renderDetail(detail: string | undefined, explained: string | undefined)
 
 /**
  * Coloration syntaxique, quatre catégories : commentaire, chaîne, nombre, mot-clé. Le
- * tokenizer tient en une expression et couvre la famille JS/TS, celle des parcours ;
- * ailleurs le code sort échappé, sans couleur, ce qui reste lisible.
+ * tokenizer tient en une expression par langage et couvre JS/TS et Python, ceux des
+ * parcours ; ailleurs le code sort échappé, sans couleur, ce qui reste lisible.
  *
  * ponytail: tokenizer par regex, sans état — un mot-clé dans un identifiant composé n'est
  * pas coloré à tort (les `\b` s'en chargent), mais une regex littérale contenant un
  * guillemet le serait. Passer à un vrai lexeur si un parcours non-JS le demande.
  */
 export function highlight(file: string, source: string): string {
-  if (!/\.(?:[mc]?[jt]sx?)$/i.test(file)) return escapeHtml(source)
+  const token = /\.(?:[mc]?[jt]sx?)$/i.test(file) ? TOKEN : /\.py$/i.test(file) ? PY_TOKEN : undefined
+  if (token === undefined) return escapeHtml(source)
 
   let out = ''
   let last = 0
-  for (const match of source.matchAll(TOKEN)) {
+  for (const match of source.matchAll(token)) {
     const text = match[0] ?? ''
     const at = match.index ?? 0
     const kind =
@@ -347,6 +499,23 @@ const TOKEN = new RegExp(
     String.raw`('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|\`(?:[^\`\\]|\\.)*\`)`,
     String.raw`\b(0[xXbBoO][\da-fA-F_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][-+]?\d+)?)\b`,
     String.raw`\b(?:${KEYWORDS})\b`,
+  ].join('|'),
+  'g'
+)
+
+const PY_KEYWORDS = [
+  'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif',
+  'else', 'except', 'False', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is',
+  'lambda', 'None', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try', 'while',
+  'with', 'yield',
+].join('|')
+
+const PY_TOKEN = new RegExp(
+  [
+    String.raw`(#[^\n]*)`,
+    String.raw`("""[\s\S]*?"""|'''[\s\S]*?'''|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")`,
+    String.raw`\b(0[xXbBoO][\da-fA-F_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][-+]?\d+)?)\b`,
+    String.raw`\b(?:${PY_KEYWORDS})\b`,
   ].join('|'),
   'g'
 )

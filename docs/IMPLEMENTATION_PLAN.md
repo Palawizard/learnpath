@@ -164,6 +164,24 @@ interface que les parcours Vitest (D39).
 
 ---
 
+## Lot 9 — Pédagogie
+
+**But** : qu'un parcours apprenne à coder, syntaxe comprise, sans afficher la solution à
+chaque étape, et qu'il dise ce qu'il ne couvre pas (D40 à D43).
+
+- Format : `steps[].examples`, `steps[].scaffold`, `scope` à la racine
+- `src/core/pedagogy.ts` + `diff.ts` : exemples exigés et non recopiés, 20 lignes par étape
+  au plus, `scope` exigé — à la commande d'import, pas dans `loadParcours`
+- Panneau : « À propos », exemples, test repliable, bouton Squelette, solution en diff,
+  signal « deux solutions de suite », « Reste à faire » en fin de parcours
+- Prompt : étape 0 de périmètre, règles pédagogiques, deux niveaux (programmation, langage)
+  et « ce que je connais déjà »
+- Exemples livrés enrichis ; QA manuelle 97 à 110
+
+**Fait** côté code. Reste la vérification à l'écran : points 97 à 110 de `MANUAL-QA.md`.
+
+---
+
 ## Après le v1
 
 Dans cet ordre de priorité présumé, à revalider avec de vrais utilisateurs :

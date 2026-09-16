@@ -91,10 +91,12 @@ blockquote {
   margin: 1rem 0;
 }
 .acceptance, .hint-list, .recap ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+/* Le numéro est déjà dans le texte (.hint-index) : sans ça, « 1. 1. ». */
+.hint-list { list-style: none; padding-left: 0; }
 .acceptance li, .hint-list li, .recap li { margin: 0.2rem 0; }
 .hint-index { color: var(--vscode-descriptionForeground); }
 .muted { color: var(--vscode-descriptionForeground); }
-.actions { display: flex; gap: 0.5rem; margin: 1rem 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 button {
   font-family: inherit;
   font-size: inherit;
@@ -122,7 +124,39 @@ button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-off
   gap: 0.5rem;
 }
 .solution-head button { padding: 0.15rem 0.6rem; font-size: 0.9em; }
-.solution .code { max-height: 22rem; overflow: auto; white-space: pre; }
+.solution .code, .scaffold .code, .examples .code, .test-source .code {
+  max-height: 22rem;
+  overflow: auto;
+  white-space: pre;
+}
+details > summary { cursor: pointer; color: var(--vscode-textLink-foreground); }
+details > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.card.about > summary { color: var(--vscode-foreground); font-weight: 600; }
+.card.about ul { margin: 0.3rem 0 0.4rem; padding-left: 1.2rem; }
+.card.about h3 { margin-top: 0.6rem; }
+.test-source { margin-top: 0.6rem; }
+.test-source .file { display: inline-block; margin-top: 0.3rem; }
+.examples h4 { margin: 0.6rem 0 0; font-size: 1em; }
+.example-notes ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.example-notes li { margin: 0.15rem 0; }
+.diff-legend { margin: 0.4rem 0 0; }
+.full-file { margin-top: 0.4rem; }
+.diff-line { display: block; }
+.diff-line.add {
+  background: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+}
+.diff-line.del {
+  background: var(--vscode-diffEditor-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
+  text-decoration: line-through;
+  color: var(--vscode-descriptionForeground);
+}
+.diff-line.skip { color: var(--vscode-descriptionForeground); }
+.banner.pacing {
+  border-left-color: var(--vscode-panel-border);
+  background: var(--vscode-textCodeBlock-background);
+  margin: 1rem 0;
+}
+.banner.pacing .muted { margin: 0.2rem 0 0; }
 .tok-comment { color: var(--vscode-descriptionForeground); font-style: italic; }
 .tok-string { color: var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-orange)); }
 .tok-number { color: var(--vscode-symbolIcon-numberForeground, var(--vscode-charts-green)); }
@@ -248,8 +282,12 @@ document.addEventListener('click', (event) => {
     vscode.postMessage({ type: action });
     return;
   }
-  if (action === 'copy') {
-    vscode.postMessage({ type: 'copySolution', stepId: stepId, file: button.dataset.file });
+  if (action === 'copy' || action === 'copyScaffold') {
+    vscode.postMessage({ type: action === 'copy' ? 'copySolution' : 'copyScaffold', stepId: stepId, file: button.dataset.file });
+    return;
+  }
+  if (action === 'scaffold') {
+    vscode.postMessage({ type: 'revealScaffold', stepId: stepId });
     return;
   }
   // Relire et refaire portent l'étape visée dans le bouton : c'est une étape passée, pas

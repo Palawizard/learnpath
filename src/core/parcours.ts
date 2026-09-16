@@ -24,6 +24,27 @@ export interface Contract {
   readonly notes?: string
 }
 
+/**
+ * Le périmètre annoncé par le générateur (D42) : ce que le parcours couvre de la demande, et
+ * ce qu'il laisse de côté. Sans lui, un générateur qui réduit la demande à ce qui se teste
+ * facilement le fait en silence.
+ */
+export interface Scope {
+  readonly covered: readonly string[]
+  readonly notCovered: readonly string[]
+}
+
+/**
+ * Un exemple résolu (D40) : la syntaxe dont l'étape a besoin, montrée sur **un autre sujet**
+ * que l'étape. On apprend une syntaxe en la voyant écrite, pas en la devinant.
+ */
+export interface StepExample {
+  readonly title: string
+  readonly code: string
+  /** Markdown : ce qu'on lit, ligne par ligne. */
+  readonly explanation?: string
+}
+
 export interface StepExpected {
   readonly files: readonly string[]
   readonly contract?: string
@@ -40,9 +61,12 @@ export interface Step {
   readonly id: string
   readonly title: string
   readonly explanation: string
+  readonly examples?: readonly StepExample[]
   readonly expected: StepExpected
   readonly tests: StepTests
   readonly hints?: readonly string[]
+  /** Le fichier de l'étape avec des trous à compléter, affiché à la demande (D41). */
+  readonly scaffold?: Readonly<Record<string, string>>
   readonly solution: Readonly<Record<string, string>>
 }
 
@@ -51,6 +75,7 @@ export interface Parcours {
   readonly slug: string
   readonly title: string
   readonly intro?: string
+  readonly scope?: Scope
   readonly runner: Runner
   readonly contract?: Contract
   readonly steps: readonly Step[]
@@ -185,6 +210,26 @@ function checkSemantics(parcours: Parcours): ValidationError[] {
         errors.push({
           path: `/steps/${i}/solution`,
           message: `${at} : la solution écrit « ${file} », qui n'est pas listé dans expected.files (${step.expected.files.join(', ')})`,
+        })
+      }
+    }
+
+    // Le squelette s'affiche et se copie comme la solution : mêmes règles de chemin.
+    for (const [file, content] of Object.entries(step.scaffold ?? {})) {
+      const r = safeResolve(VALIDATION_ROOT, file)
+      if (!r.ok) {
+        errors.push({ path: `/steps/${i}/scaffold`, message: `${at}, scaffold : ${r.error}` })
+        continue
+      }
+      if (!declared.has(file)) {
+        errors.push({
+          path: `/steps/${i}/scaffold`,
+          message: `${at} : le squelette porte sur « ${file} », qui n'est pas listé dans expected.files (${step.expected.files.join(', ')})`,
+        })
+      } else if (content === step.solution[file]) {
+        errors.push({
+          path: `/steps/${i}/scaffold`,
+          message: `${at} : le squelette de « ${file} » est identique à la solution, il doit laisser des trous à compléter`,
         })
       }
     }

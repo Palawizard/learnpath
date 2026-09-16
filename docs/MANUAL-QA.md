@@ -147,11 +147,11 @@ VSCodium ».
 | 74 | « Générer le prompt » depuis l'accueil, et la commande de la palette | Le même onglet « LearnPath — prompt de génération ». Un second clic **révèle l'onglet déjà ouvert**, il n'en crée pas un deuxième |
 | 75 | La commande **avec un parcours en cours** | Disponible dans la palette et dans le menu `…` du titre, et elle ouvre le formulaire. La vue du parcours n'a pas bougé |
 | 76 | Envoyer le formulaire avec la fonctionnalité vide | Le navigateur refuse l'envoi et pointe le champ. Rien n'est composé |
-| 77 | Remplir la fonctionnalité seule, envoyer | Le prompt s'affiche **en entier** en dessous. Il contient « La fonctionnalité que je veux coder : … » et « Mon niveau : intermédiaire », et **aucune** ligne « Fichiers ou dossiers concernés » |
-| 78 | Remplir aussi « Fichiers ou dossiers concernés » | La ligne « Fichiers ou dossiers concernés : … » apparaît, juste avant la fonctionnalité |
+| 77 | Remplir la fonctionnalité seule, envoyer | Le prompt s'affiche **en entier** en dessous. Il contient « La fonctionnalité que je veux coder : … », « Mon niveau en programmation : intermédiaire » et « Mon niveau dans ce langage ou ce framework : je découvre la syntaxe », et **aucune** ligne « Fichiers ou dossiers concernés » ni « Ce que je connais déjà » |
+| 78 | Remplir aussi « Ce que tu connais déjà » et « Fichiers ou dossiers concernés » | Les deux lignes apparaissent, juste avant la fonctionnalité |
 | 79 | Le prompt affiché | **Modifiable** : on peut y taper. Aucun `{{…}}` ne subsiste nulle part dans le texte |
 | 80 | Modifier le texte, puis « Copier » | La barre d'état dit « prompt copié », et un collage ailleurs rend **le texte modifié**, pas le texte d'origine |
-| 81 | Comparer le prompt copié à `prompts/generer-parcours.md` | Identique, aux trois champs près. C'est tout l'objet de D37 |
+| 81 | Comparer le prompt copié à `prompts/generer-parcours.md` | Identique, aux cinq champs près. C'est tout l'objet de D37 |
 | 82 | Le formulaire dans un dossier **sans** `package.json` | Un bandeau le signale, et le formulaire **fonctionne quand même** : on compose et on copie |
 | 83 | Le formulaire en thème clair, sombre et contrasté | Champs, bouton et bandeaux lisibles ; le focus clavier se voit sur chaque champ et chaque bouton |
 | 84 | Passer à un autre onglet puis revenir | La saisie et le prompt composé sont toujours là |
@@ -202,6 +202,27 @@ Dossier vide (sans `package.json`), avec Python 3 installé. Importer
 | 94 | Après une dizaine de runs : l'arborescence du projet | Aucun `__pycache__` ni `.pytest_cache`, ni à la racine ni dans `.learn/` |
 | 95 | Un `pytest.ini` du projet avec `addopts = -x --inexistant` et un `conftest.py` qui lève | L'import et les runs marchent comme si ces fichiers n'existaient pas ; ils ne sont pas modifiés |
 | 96 | Windows : projet sans `.venv`, seul l'alias Microsoft Store de `python.exe` présent | Message « Aucun interpréteur Python n'a été trouvé », pas d'ouverture du Store ni de blocage |
+
+## Pédagogie : exemples, squelette, diff, périmètre (D40 à D43)
+
+Importer `examples/exemple-panier.json` dans `examples/demo-project`.
+
+| # | Point | Attendu |
+|---|---|---|
+| 97 | L'étape 1.1 | « À propos de ce parcours » est **ouvert**, avec « Ce que le parcours couvre » et « Ce qu'il ne couvre pas ». À l'étape 1.2 il est **replié** |
+| 98 | Le bloc « Exemple de syntaxe » | Juste après l'explication, code coloré, notes en puces lisibles ; en thème clair, sombre et contrasté |
+| 99 | « Ce que vérifie le test » dans « Attendu » | Replié par défaut ; déplié, le contenu de `.learn/tests/step-1.x.spec.js`, coloré |
+| 100 | Les boutons à l'étape 1.2 | Dans l'ordre « Indice », « Squelette », « Solution » ; ils passent à la ligne proprement dans une barre latérale étroite |
+| 101 | Cliquer « Squelette » | **Aucune** boîte de dialogue ; le bloc « Squelette » s'affiche, le bouton devient « Squelette affiché » grisé ; aucun fichier du projet ne change |
+| 102 | « Copier » du squelette | Le presse-papiers contient le fichier complet avec ses `TODO` |
+| 103 | Afficher la solution de 1.2 | « Ce que l'étape change dans le fichier » : les lignes d'`addItem` surlignées, `⋯` pour le contexte lointain, « Fichier complet » replié ; « Copier » copie le fichier **complet** |
+| 104 | Afficher aussi la solution de 1.3 | Le bandeau « Deux solutions affichées de suite » apparaît sous la solution, sans modale |
+| 105 | Finir le parcours | Le récapitulatif dit « squelette affiché » pour une étape aidée ainsi, et « Reste à faire, hors de ce parcours » liste `scope.notCovered` |
+| 106 | Importer un parcours **sans** `scope` ni `examples` | Refusé **avant** toute écriture ni confirmation de setup ; la vue Sortie liste tous les problèmes, étape par étape |
+| 107 | Importer un parcours dont une étape ajoute 30 lignes | Refusé en nommant l'étape et « 30 lignes à écrire, le maximum est 20 » |
+| 108 | Un parcours déjà importé avant la mise à jour (sans `examples` ni `scope`) | Il se rouvre et se joue normalement : pas d'exemple, pas d'« À propos » avec périmètre, aucune erreur |
+| 109 | Le formulaire du prompt | Deux listes de niveau (« je découvre la syntaxe » présélectionné) et le champ « Ce que tu connais déjà » ; la ligne d'aide sous le niveau de langage est lisible |
+| 110 | Parcours Python : `examples/exemple-panier-python.json` | Exemples colorés en Python (`def`, commentaires `#`), squelette et diff comme en JS |
 
 ---
 

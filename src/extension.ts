@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import * as path from 'node:path'
 import { loadParcours } from './core/parcours'
+import { checkPedagogy } from './core/pedagogy'
 import { importParcours } from './core/importer'
 import { removeParcours, restartParcours } from './core/reset'
 import { ParcoursPanel } from './webview/panel'
@@ -199,6 +200,19 @@ async function importCommand(): Promise<void> {
     void vscode.window.showErrorMessage(
       `LearnPath — parcours invalide (${parcours.error.length} problème(s)). Détail dans la vue Sortie.`
     )
+    return
+  }
+
+  // D40 à D42 : un parcours qui n'enseigne pas (étape trop grosse, aucun exemple, périmètre
+  // tu) est refusé ici, avant la moindre écriture. Pas dans `loadParcours` : un parcours
+  // importé avant ces règles doit rester jouable quand la session le relit.
+  const pedagogy = checkPedagogy(parcours.value)
+  if (!pedagogy.ok) {
+    const channel = log()
+    channel.appendLine(`Parcours refusé : ${file.fsPath}`)
+    channel.appendLine(pedagogy.error)
+    channel.show(true)
+    void vscode.window.showErrorMessage(`LearnPath — ${pedagogy.error.split('\n')[0] ?? ''} Détail dans la vue Sortie.`)
     return
   }
 

@@ -14,6 +14,11 @@ export interface ParcoursState {
   /** id d'étape → nombre d'indices révélés. Donnée la plus intéressante du state (UX.md). */
   readonly hintsRevealed: Readonly<Record<string, number>>
   readonly solutionsRevealed: readonly string[]
+  /**
+   * Étapes dont le squelette a été affiché (D41). Absent des `state.json` écrits avant :
+   * relu comme vide.
+   */
+  readonly scaffoldsRevealed: readonly string[]
   readonly startedAt: string
   readonly updatedAt: string
   /** Présent une fois la dernière étape franchie. Absent tant que le parcours est en cours. */
@@ -37,6 +42,7 @@ export function createState(slug: string, firstStepId: string, now = new Date())
     currentStepId: firstStepId,
     hintsRevealed: {},
     solutionsRevealed: [],
+    scaffoldsRevealed: [],
     startedAt: stamp,
     updatedAt: stamp,
   }
@@ -71,6 +77,7 @@ export function parseState(raw: string): Result<ParcoursState> {
     currentStepId: candidate['currentStepId'],
     hintsRevealed: numberRecord(candidate['hintsRevealed']),
     solutionsRevealed: stringArray(candidate['solutionsRevealed']),
+    scaffoldsRevealed: stringArray(candidate['scaffoldsRevealed']),
     startedAt: typeof candidate['startedAt'] === 'string' ? candidate['startedAt'] : '',
     updatedAt: typeof candidate['updatedAt'] === 'string' ? candidate['updatedAt'] : '',
     ...(typeof candidate['completedAt'] === 'string' ? { completedAt: candidate['completedAt'] } : {}),
@@ -127,6 +134,15 @@ export function revealSolution(state: ParcoursState, stepId: string, now = new D
   return {
     ...state,
     solutionsRevealed: [...state.solutionsRevealed, stepId],
+    updatedAt: now.toISOString(),
+  }
+}
+
+export function revealScaffold(state: ParcoursState, stepId: string, now = new Date()): ParcoursState {
+  if (state.scaffoldsRevealed.includes(stepId)) return state
+  return {
+    ...state,
+    scaffoldsRevealed: [...state.scaffoldsRevealed, stepId],
     updatedAt: now.toISOString(),
   }
 }

@@ -63,7 +63,11 @@ seule des quatre qui n'est pas conditionnée à `learnpath.active`.
 la vue est repeinte à chaque run de tests, ce qui effacerait la saisie en cours.
 
 - **la fonctionnalité à implémenter** — zone de texte, seul champ obligatoire ;
-- **le niveau** : débutant ou intermédiaire ;
+- **le niveau en programmation** : débutant, intermédiaire ou avancé ;
+- **le niveau dans le langage ou le framework** : « je découvre la syntaxe » (par défaut),
+  « je connais les bases », « à l'aise » — une ligne d'aide dit que c'est lui qui décide des
+  exemples et de la taille des étapes (D43) ;
+- **ce que tu connais déjà** — facultatif ;
 - **les fichiers ou dossiers concernés** — facultatif, pour orienter le générateur.
 
 **Puis le prompt complet est affiché, en entier, modifiable, avec un bouton « Copier ».**
@@ -85,9 +89,15 @@ l'étape suivante, et ce n'est pas à ce formulaire d'en décider.
 │ Panier d'achat        Étape 2 / 5  │
 │ ▓▓▓▓ ▒▒▒▒ ░░░░ ░░░░ ░░░░           │
 ├────────────────────────────────────┤
+│ ▸ À propos de ce parcours          │
 │ Ajouter un article                 │
 │                                    │
 │ <explanation en markdown>          │
+│                                    │
+│ ── Exemple de syntaxe ───────────  │
+│ Copier en changeant une partie     │
+│ const b = { ...a, age: 37 }        │
+│ • { ...a } copie toutes les clés   │
 │                                    │
 │ ── Attendu ──────────────────────  │
 │ src/panier.js                      │
@@ -95,8 +105,9 @@ l'étape suivante, et ce n'est pas à ce formulaire d'en décider.
 │ • Ajoute une ligne si absent       │
 │ • Incrémente qty si déjà présent   │
 │ • Ne mute pas l'entrée             │
+│ ▸ Ce que vérifie le test           │
 │                                    │
-│ [ Indice ]          [ Solution ]   │
+│ [ Indice ] [ Squelette ] [Solution]│
 ├────────────────────────────────────┤
 │ <zone d'état du dernier run>       │
 └────────────────────────────────────┘
@@ -206,11 +217,44 @@ L'étape courante passe, mais une étape déjà validée ne passe plus : la prog
 Formulation : « Étape 1.3 validée. En attente : l'étape 1.2 ne passe plus depuis ta
 dernière modification. » Ça dit ce qui est acquis, ce qui bloque, et où regarder.
 
+## À propos, et exemples de syntaxe
+
+- **À propos de ce parcours** (D42) : l'intro, ce qui est couvert, ce qui ne l'est pas.
+  Ouvert à la première étape, replié ensuite. Absent d'un parcours sans intro ni `scope`.
+- **Exemple de syntaxe** (D40) : juste après l'explication, avant « Attendu ». Titre, code
+  coloré (JS/TS, Python), notes en markdown. Le sous-titre rappelle que l'exemple porte sur
+  un autre sujet : c'est à l'étudiant de transposer.
+- **Ce que vérifie le test** (D41) : replié dans le bloc « Attendu », le fichier de test de
+  l'étape tel quel.
+
 ## Indices
 
 Révélés un par un, du plus vague au plus précis. Un indice révélé le reste. Le nombre
 d'indices utilisés est enregistré dans le state : c'est la donnée la plus intéressante à
 montrer à l'utilisateur en fin de parcours.
+
+## Squelette
+
+L'aide intermédiaire entre l'indice et la solution (D41). Le bouton n'existe que si l'étape
+en a un, et vit **entre** « Indice » et « Solution » : l'ordre des boutons est l'échelle
+d'aide. Pas de confirmation — il ne donne pas la réponse. Il s'affiche comme la solution
+(bloc par fichier, « Copier »), rien n'est écrit, et le récapitulatif de fin dit « squelette
+affiché » pour une étape aidée ainsi sans solution.
+
+## Ce que l'étape change
+
+La solution et le squelette d'un fichier **qui existait avant l'étape** s'affichent en diff :
+« Ce que l'étape change dans le fichier », lignes ajoutées surlignées (`+`), lignes retirées
+barrées (`−`), deux lignes de contexte autour, « ⋯ » pour le reste, couleurs du thème
+(`diffEditor.*`). Le fichier complet se déplie sous « Fichier complet ». « Copier » copie
+toujours le fichier complet. Un fichier créé par l'étape s'affiche entier.
+
+## Deux solutions de suite
+
+Quand la solution de l'étape courante et celle de la précédente ont été affichées, un bandeau
+neutre sous la solution : « Deux solutions affichées de suite », les étapes sont peut-être
+trop grosses pour ton niveau, régénère en « je découvre la syntaxe ». Pas de modale, pas de
+reproche, et rien pour une seule solution affichée.
 
 ## Solution
 
@@ -232,8 +276,10 @@ montrer à l'utilisateur en fin de parcours.
 
 L'écran de fin est un écran à part entière, pas une étape avec une section ajoutée :
 l'énoncé, le bloc « Attendu » et les boutons de la dernière étape **disparaissent**. Il ne
-reste que le récapitulatif — étapes réussies seules, étapes avec indices, étapes révélées —
-et le compteur devient « Parcours terminé — N étapes », tous les segments pleins.
+reste que le récapitulatif — étapes réussies seules, étapes avec indices, avec squelette,
+étapes révélées — et le compteur devient « Parcours terminé — N étapes », tous les segments
+pleins. Si le parcours a laissé des éléments de côté (`scope.notCovered`), un bloc « Reste à
+faire, hors de ce parcours » les liste, avec le renvoi vers « Générer le prompt ».
 
 Puis la proposition la plus importante : déplacer `.learn/tests/` vers le dossier de tests
 du projet.

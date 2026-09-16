@@ -88,6 +88,8 @@ describe('parseState', () => {
     )
     expect(result.ok && result.value.hintsRevealed).toEqual({ '1.2': 1 })
     expect(result.ok && result.value.solutionsRevealed).toEqual(['1.1'])
+    // Un state écrit avant D41 n'a pas le champ : il se relit comme vide.
+    expect(result.ok && result.value.scaffoldsRevealed).toEqual([])
   })
 
   it('signale l\'absence de fichier autrement qu\'une corruption', async () => {

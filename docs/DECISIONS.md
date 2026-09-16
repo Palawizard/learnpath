@@ -1363,3 +1363,143 @@ réimport qui ne recrée pas le venv. La CI installe pytest et pose
   casserait `pytest-asyncio` pour un parcours qui en a besoin. Un plugin qui exige sa config
   (pytest-django) cassera les runs ; à traiter s'il remonte.
 - `runner.cwd` différent de `.` n'est pas plus essayé en vrai côté Python que côté Vitest.
+
+---
+
+## D40 — Chaque étape montre la syntaxe : les exemples résolus
+
+**Le problème, constaté sur un vrai parcours.** Un parcours React de huit étapes
+(`stock-movements-react`) a été joué par un étudiant qui découvrait React et TypeScript. Il
+a dû afficher la solution **à chaque étape**. Les explications étaient justes, mais elles
+ne disaient que le *pourquoi* (« un composant contrôlé, React est la source de vérité ») :
+aucun code, parce que la spec et le prompt l'interdisaient (« Le POURQUOI, jamais le
+code »). Entre l'explication et la solution complète, il n'y avait rien. On ne devine pas
+une syntaxe qu'on n'a jamais vue. La règle venait d'une bonne intention — ne pas donner la
+réponse — mais elle confondait la réponse et la syntaxe.
+
+**Décision : un champ `steps[].examples`, obligatoire à l'import.** De un à trois exemples
+par étape, chacun `{ title, code, explanation? }` : la syntaxe exacte dont l'étape a besoin,
+écrite et fonctionnelle, **sur un autre sujet que l'étape**. L'étudiant voit
+`const [n, setN] = useState(0)` sur un compteur, puis l'écrit lui-même pour son formulaire.
+C'est la méthode de l'exemple résolu : voir, puis transposer.
+
+Le panneau les affiche juste après l'explication, colorés (JS/TS, et désormais Python), avec
+leurs notes en markdown sous le code.
+
+### Un exemple ne doit pas être la réponse
+
+Le risque inverse est réel : un générateur pressé met la solution dans l'exemple. L'import
+le refuse (`copiesSolution`, `src/core/pedagogy.ts`) : quand plus de la moitié des lignes
+« parlantes » d'un exemple (significatives, hors imports, 12 caractères au moins, trois au
+minimum) se retrouvent telles quelles parmi les lignes que la solution de l'étape
+**ajoute**. Heuristique assumée et marquée : un exemple qui ne fait que renommer les
+variables passe entre les mailles. On la durcira si le cas remonte.
+
+### Pourquoi à l'import, et pas dans `loadParcours`
+
+`loadParcours` relit aussi le parcours déjà importé à chaque ouverture du projet. Rendre
+`examples` obligatoire dans le schéma aurait rendu injouables, du jour au lendemain, les
+parcours importés avant. Le schéma l'accepte donc facultatif ; c'est `checkPedagogy`, appelé
+par la commande d'import avant la moindre écriture, qui l'exige. Un vieux parcours se joue,
+un nouveau doit enseigner.
+
+---
+
+## D41 — L'échelle d'aide : indice, squelette, solution en diff, et la taille des étapes
+
+**Le problème.** L'aide passait d'un indice d'une ligne au fichier complet (98 lignes à
+l'étape 1.4 du parcours cité en D40). Trois défauts : pas de marche intermédiaire, rien pour
+voir *ce que l'étape ajoute* dans le fichier, et, une fois la solution vue, plus rien à
+chercher. En plus, la règle « environ 15 lignes par étape » n'était vérifiée par personne :
+sur ce parcours, une seule étape la respectait, et l'étape 1.6 faisait écrire un formulaire
+React complet (56 lignes) d'un coup.
+
+**Décision, en quatre parties.**
+
+1. **Le squelette** (`steps[].scaffold`, facultatif) : le contenu complet du fichier, le code
+   des étapes précédentes compris, où la partie de l'étape est remplacée par sa structure et
+   des `TODO`. Bouton « Squelette » entre « Indice » et « Solution », sans confirmation (il
+   ne donne pas la réponse), noté dans `state.scaffoldsRevealed` et dans le récapitulatif.
+   Même règles que la solution : clés dans `expected.files`, chemins passés à `safeResolve`,
+   rien n'est écrit, copie par l'hôte — et `loadParcours` refuse un squelette identique à la
+   solution. Un `state.json` antérieur sans le champ se relit comme vide.
+2. **La solution et le squelette se montrent en diff** quand l'étape modifie un fichier qui
+   existait avant elle (`contentBefore` : la dernière solution antérieure qui l'écrit).
+   Lignes ajoutées surlignées, lignes retirées barrées, deux lignes de contexte autour et
+   « ⋯ » pour le reste ; le fichier complet se déplie à la demande, et « Copier » copie
+   toujours le fichier complet. Un fichier créé par l'étape s'affiche entier, un diff
+   n'apprendrait rien de plus.
+3. **La taille d'une étape est mesurée à l'import** : les lignes que la solution N ajoute ou
+   modifie par rapport à la solution N-1, tous fichiers confondus, hors lignes vides et hors
+   lignes qui ne font que fermer un bloc (`}`, `)}`, `</tr>`) — sans ça, un composant JSX
+   pèse le double de ce qu'il demande. Au-delà de **20**, l'import est refusé et nomme
+   l'étape. 20 et non 15 : la spec dit « environ », et les imports et les signatures comptent
+   sans être le cœur de l'étape. Les deux parcours d'exemple livrés sont sous la limite.
+4. **Le test de l'étape est visible**, replié sous « Ce que vérifie le test » dans le bloc
+   « Attendu ». Des détails imposés par le test (`getAllByRole('row')[1]`, un texte exact)
+   n'avaient pas à se deviner.
+
+Le diff est un LCS ligne à ligne (`src/core/diff.ts`), sans dépendance : les fichiers
+d'exercice font quelques centaines de lignes, O(n×m) y est invisible. Marqué `ponytail:`
+pour le jour où ça ne suffirait plus.
+
+**Et un signal honnête.** Quand la solution de l'étape courante **et** celle de l'étape
+précédente ont été affichées, le panneau dit, sans juger, que les étapes sont peut-être trop
+grosses pour le niveau choisi, et propose de régénérer en « je découvre la syntaxe ». Deux,
+pas une : une étape difficile arrive à tout le monde.
+
+---
+
+## D42 — Le périmètre est annoncé, avant et dans le parcours
+
+**Le problème, constaté.** Le même parcours devait couvrir « les trois tâches » d'un plan :
+handlers MSW, couche API, hook de chargement, écrans, formulaire, historique. Il n'a couvert
+que la logique pure et des composants pilotés par props — ce qui se teste en trois lignes —
+et l'a fait **en silence** : l'intro et la dernière étape laissaient croire que tout était
+couvert. L'étudiant l'a découvert quatre échanges plus tard. Trois causes : le prompt ne
+disait rien du périmètre, le format n'avait nulle part où écrire ce qui était laissé de côté,
+et la demande dépassait ce que dix étapes peuvent couvrir.
+
+**Décision.**
+
+- **Champ racine `scope: { covered: string[], notCovered: string[] }`**, exigé à l'import
+  (`checkPedagogy`, même raisonnement que D40 sur `loadParcours`). `notCovered` peut être vide,
+  mais il doit être là : l'absence d'une liste n'est plus une réponse.
+- **Le panneau le montre** : un bloc « À propos de ce parcours » (l'intro, ce qui est couvert,
+  ce qui ne l'est pas), ouvert à la première étape et replié ensuite ; et l'écran de fin
+  rappelle « Reste à faire, hors de ce parcours » avec le renvoi vers « Générer le prompt ».
+  L'intro n'était d'ailleurs affichée nulle part jusqu'ici.
+- **Le prompt commence par une étape 0** : découper la demande, estimer le nombre d'étapes,
+  et **si elle ne tient pas en dix, ne rien écrire** et proposer un découpage en plusieurs
+  parcours, puis attendre. Il interdit de choisir ce qui est facile à tester et nomme les
+  outils pour tester ce qui ne l'est pas (MSW, `vi.stubGlobal`, `renderHook`, `MemoryRouter`,
+  `monkeypatch`). La réponse finale de l'agent tient en trois lignes : chemin, couvert, non
+  couvert.
+
+**Ce qui n'est pas fait.** L'extension ne peut pas vérifier que `scope` est *honnête* — elle
+ne connaît pas la demande. Elle garantit qu'il est écrit et qu'il est vu ; l'honnêteté reste
+du ressort du prompt.
+
+---
+
+## D43 — Deux niveaux au lieu d'un : la programmation, et le langage
+
+**Le problème.** « débutant / intermédiaire » ne disait pas ce qui compte pour doser l'aide :
+on peut être intermédiaire en programmation et découvrir React. C'est le niveau **dans le
+langage ou le framework** qui décide s'il faut montrer la syntaxe.
+
+**Décision.** Le formulaire du prompt demande :
+
+- **le niveau en programmation** : débutant, intermédiaire, avancé (`{{NIVEAU}}`) ;
+- **le niveau dans le langage ou le framework** : « je découvre la syntaxe », « je connais
+  les bases », « à l'aise » (`{{NIVEAU_LANGAGE}}`), **« je découvre la syntaxe » par défaut**
+  — le coût d'une aide en trop est une ligne à sauter, celui d'une aide manquante est la
+  solution affichée à chaque étape ;
+- **ce que l'utilisateur connaît déjà**, facultatif (`{{ACQUIS}}`, ligne effacée si vide,
+  comme `{{FICHIERS}}`).
+
+Le prompt traduit chaque niveau de langage en consignes : nombre d'exemples, squelette à
+chaque étape ou seulement pour les grosses, taille visée (8 à 15 lignes pour « je découvre
+la syntaxe »). `composePrompt` refuse une valeur hors liste dans l'un ou l'autre champ, et
+les tests vérifient que chaque niveau proposé par le formulaire est bien expliqué dans le
+gabarit livré.
