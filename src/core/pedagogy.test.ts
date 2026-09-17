@@ -3,7 +3,7 @@ import { loadParcours, type Parcours, type Step } from './parcours.js'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { checkPedagogy, contentBefore, MAX_STEP_LINES, readBaseline, stepSize } from './pedagogy.js'
+import { checkPedagogy, contentBefore, MAX_STEP_LINES, readBaseline, readFrozenBaseline, stepSize } from './pedagogy.js'
 
 function step(id: string, solution: string, overrides: Partial<Step> = {}): Step {
   return {
@@ -132,6 +132,37 @@ describe('readBaseline (D45)', () => {
       expect(baseline).toEqual({ 'src/a.js': existing })
       expect(stepSize(p, 0, baseline)).toBe(3)
       expect(checkPedagogy(p, baseline).ok).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('préfère la base figée au disque, et complète par le disque', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnpath-baseline-'))
+    try {
+      mkdirSync(join(root, 'src'))
+      mkdirSync(join(root, '.learn/baseline'), { recursive: true })
+      writeFileSync(join(root, 'src/a.js'), 'travail')
+      writeFileSync(join(root, 'src/b.js'), 'b disque')
+      writeFileSync(join(root, '.learn/baseline/a.json'), JSON.stringify({ 'src/a.js': 'origine' }))
+      const p = parcours([
+        step('1.1', 'x', { expected: { files: ['src/a.js', 'src/b.js'] }, solution: { 'src/a.js': 'x', 'src/b.js': 'y' } }),
+      ])
+      expect(await readBaseline(p, root)).toEqual({ 'src/a.js': 'origine', 'src/b.js': 'b disque' })
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('une base figée absente ou mal formée se lit comme vide', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnpath-baseline-'))
+    try {
+      expect(await readFrozenBaseline('a', root)).toEqual({})
+      mkdirSync(join(root, '.learn/baseline'), { recursive: true })
+      writeFileSync(join(root, '.learn/baseline/a.json'), '{cassé')
+      expect(await readFrozenBaseline('a', root)).toEqual({})
+      writeFileSync(join(root, '.learn/baseline/a.json'), JSON.stringify({ 'src/a.js': 3, 'src/b.js': 'ok' }))
+      expect(await readFrozenBaseline('a', root)).toEqual({ 'src/b.js': 'ok' })
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

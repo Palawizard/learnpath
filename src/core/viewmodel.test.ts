@@ -362,6 +362,18 @@ describe('buildViewModel — aides à l’apprentissage (D40 à D42)', () => {
     expect(created?.solution[0]?.diff).toBeUndefined()
   })
 
+  it('montre en diff un fichier qui existait dans le projet avant le parcours (D45)', () => {
+    const model = buildViewModel(
+      guided,
+      state({ currentStepId: '1.3', solutionsRevealed: ['1.3'] }),
+      undefined,
+      false,
+      undefined,
+      { 'src/neuf.js': 'm\n' }
+    )
+    expect(model?.solution[0]?.diff?.map((line) => line.kind)).toEqual(['del', 'add'])
+  })
+
   it('signale deux solutions affichées de suite, pas une seule', () => {
     expect(buildViewModel(guided, state({ solutionsRevealed: ['1.2'] }))?.pacingNotice).toBe(false)
     expect(buildViewModel(guided, state({ solutionsRevealed: ['1.1', '1.2'] }))?.pacingNotice).toBe(true)

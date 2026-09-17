@@ -11,6 +11,7 @@ import { activeSlug } from './progression.js'
 import { type RunAll, type RunSteps, verifyAllRed, verifyAllGreen } from './verify.js'
 import { checkpointStart, writeBaseRef } from './redo.js'
 import { PYTEST_CONFIG } from '../runner/pytest.js'
+import { baselinePath, readBaseline } from './pedagogy.js'
 
 export interface ImportHooks {
   /**
@@ -83,6 +84,11 @@ export async function importParcours(
   // Le `.gitignore` est un fichier de l'utilisateur : un rollback doit le rendre tel
   // qu'il était, pas seulement supprimer `.learn/`.
   const gitignoreBefore = await readOrNull(paths.value.gitignore)
+  // D45 : lue avant toute écriture, figée avec le parcours.
+  const baseline = await readBaseline(parcours, workspaceRoot)
+  // Un réimport qui échoue ne doit pas effacer la base d'un import précédent : le rollback
+  // ne retire que ce que cet import a créé.
+  const baselineExisted = await exists(paths.value.baselineFile)
   let gitignoreUpdated = false
 
   /**
@@ -136,6 +142,9 @@ export async function importParcours(
 
     await writeFileAtomic(paths.value.parcoursFile, `${JSON.stringify(parcours, null, 2)}\n`)
     created.push(paths.value.parcoursFile)
+
+    await writeFileAtomic(paths.value.baselineFile, `${JSON.stringify(baseline, null, 2)}\n`)
+    if (!baselineExisted) created.push(paths.value.baselineFile)
 
     const firstStep = parcours.steps[0]
     if (firstStep === undefined) return err("Le parcours ne contient aucune étape.")
@@ -216,6 +225,7 @@ interface Targets {
   readonly learnDir: ResolvedPath
   readonly parcoursDir: ResolvedPath
   readonly parcoursFile: ResolvedPath
+  readonly baselineFile: ResolvedPath
   readonly vitestConfig: ResolvedPath
   readonly pytestConfig: ResolvedPath
   readonly stateFile: ResolvedPath
@@ -229,6 +239,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   const learnDir = safeResolve(root, '.learn')
   const parcoursDir = safeResolve(root, '.learn/parcours')
   const parcoursFile = safeResolve(root, `.learn/parcours/${parcours.slug}.json`)
+  const baselineFile = safeResolve(root, baselinePath(parcours.slug))
   const vitestConfig = safeResolve(root, '.learn/vitest.config.mts')
   const pytestConfig = safeResolve(root, PYTEST_CONFIG)
   const stateFile = safeResolve(root, '.learn/state.json')
@@ -242,6 +253,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
   if (!learnDir.ok) return err(learnDir.error)
   if (!parcoursDir.ok) return err(parcoursDir.error)
   if (!parcoursFile.ok) return err(`Le slug « ${parcours.slug} » ne donne pas un nom de fichier valide : ${parcoursFile.error}`)
+  if (!baselineFile.ok) return err(baselineFile.error)
   if (!vitestConfig.ok) return err(vitestConfig.error)
   if (!pytestConfig.ok) return err(pytestConfig.error)
   if (!stateFile.ok) return err(stateFile.error)
@@ -254,6 +266,7 @@ function resolveTargets(parcours: Parcours, root: string): Result<Targets> {
     learnDir: learnDir.value,
     parcoursDir: parcoursDir.value,
     parcoursFile: parcoursFile.value,
+    baselineFile: baselineFile.value,
     vitestConfig: vitestConfig.value,
     pytestConfig: pytestConfig.value,
     stateFile: stateFile.value,

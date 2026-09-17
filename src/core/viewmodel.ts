@@ -1,6 +1,6 @@
 import type { Parcours, Scope, Step, StepExample } from './parcours.js'
 import { type DiffLine, diffLines } from './diff.js'
-import { contentBefore } from './pedagogy.js'
+import { type Baseline, contentBefore } from './pedagogy.js'
 import type { Outcome, Regression } from './progression.js'
 import type { ParcoursState } from './state.js'
 import type { Classification } from '../runner/classify.js'
@@ -173,7 +173,8 @@ export function buildViewModel(
   state: ParcoursState,
   outcome?: Outcome,
   running = false,
-  review?: ReviewInput
+  review?: ReviewInput,
+  baseline: Baseline = {}
 ): ViewModel | undefined {
   const current = parcours.steps.findIndex((s) => s.id === state.currentStepId)
   if (parcours.steps[current] === undefined) return undefined
@@ -212,10 +213,10 @@ export function buildViewModel(
     hints: revealedHints(step, state),
     hintsRemaining: reviewing ? 0 : (step.hints?.length ?? 0) - (state.hintsRevealed[step.id] ?? 0),
     solutionRevealed,
-    solution: solutionRevealed ? filesView(parcours, index, step.solution) : [],
+    solution: solutionRevealed ? filesView(parcours, index, step.solution, baseline) : [],
     scaffoldAvailable: Object.keys(step.scaffold ?? {}).length > 0,
     scaffoldRevealed,
-    scaffold: scaffoldRevealed ? filesView(parcours, index, step.scaffold ?? {}) : [],
+    scaffold: scaffoldRevealed ? filesView(parcours, index, step.scaffold ?? {}, baseline) : [],
     pacingNotice:
       !reviewing && solutionRevealed && previous !== undefined && state.solutionsRevealed.includes(previous.id),
     // La zone d'état décrit le dernier run, donc l'étape courante : l'afficher à côté
@@ -254,10 +255,11 @@ function revealedHints(step: Step, state: ParcoursState): readonly string[] {
 function filesView(
   parcours: Parcours,
   index: number,
-  files: Readonly<Record<string, string>>
+  files: Readonly<Record<string, string>>,
+  baseline: Baseline
 ): readonly SolutionFileView[] {
   return Object.entries(files).map(([file, content]) => {
-    const before = contentBefore(parcours, index, file)
+    const before = contentBefore(parcours, index, file, baseline)
     return before === '' ? { file, content } : { file, content, diff: diffLines(before, content) }
   })
 }

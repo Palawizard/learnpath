@@ -32,17 +32,27 @@ export function contentBefore(parcours: Parcours, index: number, file: string, b
   return baseline[file] ?? ''
 }
 
+/** Où la base est figée à l'import, pour que le panneau et un réimport la retrouvent. */
+export function baselinePath(slug: string): string {
+  return `.learn/baseline/${slug}.json`
+}
+
 /**
- * Lit sur le disque les fichiers que les solutions écrivent et qui existent déjà. Un chemin
- * refusé par `safeResolve` est ignoré : `loadParcours` l'a déjà signalé.
- *
- * ponytail: lu à l'import, donc un réimport en cours de parcours mesure depuis le travail
- * déjà fait et sous-estime les étapes. Figer la base à la première import si ça gêne.
+ * La base d'un parcours : celle figée à son import s'il y en a une, complétée par le disque
+ * pour les fichiers qu'elle ne connaît pas. Un réimport du même slug en cours de parcours
+ * mesure donc toujours depuis le projet d'origine, pas depuis le travail déjà fait.
+ * Un chemin refusé par `safeResolve` est ignoré : `loadParcours` l'a déjà signalé.
  */
 export async function readBaseline(parcours: Parcours, workspaceRoot: string): Promise<Baseline> {
+  const frozen = await readFrozenBaseline(parcours.slug, workspaceRoot)
   const files = new Set(parcours.steps.flatMap((step) => Object.keys(step.solution)))
   const baseline: Record<string, string> = {}
   for (const file of files) {
+    const known = frozen[file]
+    if (known !== undefined) {
+      baseline[file] = known
+      continue
+    }
     const resolved = safeResolve(workspaceRoot, file)
     if (!resolved.ok) continue
     try {
@@ -52,6 +62,25 @@ export async function readBaseline(parcours: Parcours, workspaceRoot: string): P
     }
   }
   return baseline
+}
+
+/**
+ * La base figée à l'import, ou vide : absente pour un parcours importé avant D45, et un
+ * fichier illisible ou mal formé ne doit pas empêcher de jouer — le panneau montre alors
+ * les solutions entières, comme avant.
+ */
+export async function readFrozenBaseline(slug: string, workspaceRoot: string): Promise<Baseline> {
+  const file = safeResolve(workspaceRoot, baselinePath(slug))
+  if (!file.ok) return {}
+  try {
+    const raw: unknown = JSON.parse(await fs.readFile(file.value, 'utf8'))
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+    return Object.fromEntries(
+      Object.entries(raw).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
+  } catch {
+    return {}
+  }
 }
 
 /** Lignes significatives que l'étape `index` demande d'écrire, tous fichiers confondus. */

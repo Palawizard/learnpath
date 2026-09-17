@@ -8,6 +8,7 @@ import { type Classification, classify } from '../runner/classify.js'
 import type { RawResult } from '../runner/parse.js'
 import { runTests } from '../runner/run-tests.js'
 import { recordCheckpoint } from './redo.js'
+import { type Baseline, readFrozenBaseline } from './pedagogy.js'
 
 /**
  * Tout ce qu'il faut pour jouer un parcours, résolu une seule fois. `src/watcher.ts` en
@@ -21,6 +22,8 @@ export interface Session {
   /** `runner.cwd` résolu. */
   readonly cwd: ResolvedPath
   readonly state: ParcoursState
+  /** Les fichiers du projet avant le parcours (D45), pour montrer les solutions en diff. */
+  readonly baseline?: Baseline
 }
 
 export interface Regression {
@@ -138,6 +141,7 @@ export async function loadSession(workspaceRoot: string): Promise<Result<Session
     stateFile: stateFile.value,
     cwd: cwd.value,
     state: state.value,
+    baseline: await readFrozenBaseline(parcours.value.slug, workspaceRoot),
   })
 }
 

@@ -15,7 +15,7 @@ dans git et dans `DECISIONS.md`).
 Rien de ce qui suit n'a été fait, et rien ne peut l'être depuis une session d'agent :
 aucun accès à l'Extension Development Host, aucun accès à VSCodium.
 
-**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 110 points, un par
+**La checklist complète est dans [`MANUAL-QA.md`](./MANUAL-QA.md) : 112 points, un par
 ligne, avec le résultat attendu.** Dans l'ordre de priorité :
 
 000. **Une série de parcours** (points 29b à 29d) : import du parcours 1 d'`Inventaire/frontend`
@@ -57,18 +57,18 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 ## Lot en cours
 
 **Lot 9 — Pédagogie**, sur `dev`. Fait côté code ; reste la vérification à l'écran (points
-97 à 110). Version **0.3.2** (correctif D45), installée dans VSCodium.
+97 à 110). Version **0.3.3** (correctif D45), installée dans VSCodium.
 
 ## Ce qui a été fait dans cette session
 
-**Correctif D45 — la taille d'une étape se mesure contre le fichier existant du projet.**
-Version **0.3.2**. Un parcours qui modifiait 3 lignes dans des handlers MSW existants était
-refusé (« 90 lignes à écrire ») : un fichier qu'aucune étape précédente n'écrit était compté
-en entier. `readBaseline` lit ces fichiers à l'import, `contentBefore` s'en sert en repli.
-3 tests dans `pedagogy.test.ts`, spec règle 6 mise à jour.
-
-**Reste ouvert (D45) :** le diff du panneau n'a pas cette base — la solution d'une étape sur
-un fichier préexistant s'affiche entière. Demande de figer la base dans `.learn/` à l'import.
+**Correctif D45 — une étape sur un fichier existant du projet se mesure contre ce fichier.**
+Versions **0.3.2** puis **0.3.3**. Un parcours qui modifiait 3 lignes dans des handlers MSW
+existants était refusé (« 90 lignes à écrire ») : un fichier qu'aucune étape précédente
+n'écrit était compté en entier. Désormais l'import lit ces fichiers (`readBaseline`), les
+fige dans `.learn/baseline/<slug>.json`, et `contentBefore` s'en sert en repli — pour la
+taille des étapes, pour le diff du panneau (via `Session.baseline`), et pour un réimport en
+cours de parcours, qui repart de la base figée. Tests : `pedagogy`, `importer`, `viewmodel`.
+QA manuelle **111 et 112**.
 
 **Session d'avant — correctif D44** (0.3.1) : `state.json` désigne le parcours actif ; une
 série `1-…`, `2-…`, `3-…` se joue depuis le même dossier.

@@ -226,6 +226,8 @@ Importer `examples/exemple-panier.json` dans `examples/demo-project`.
 | 108 | Un parcours déjà importé avant la mise à jour (sans `examples` ni `scope`) | Il se rouvre et se joue normalement : pas d'exemple, pas d'« À propos » avec périmètre, aucune erreur |
 | 109 | Le formulaire du prompt | Deux listes de niveau (« je découvre la syntaxe » présélectionné) et le champ « Ce que tu connais déjà » ; la ligne d'aide sous le niveau de langage est lisible |
 | 110 | Parcours Python : `examples/exemple-panier-python.json` | Exemples colorés en Python (`def`, commentaires `#`), squelette et diff comme en JS |
+| 111 | Importer un parcours dont une étape modifie 3 lignes d'un gros fichier **déjà présent** dans le projet | Import accepté ; `.learn/baseline/<slug>.json` contient ce fichier tel qu'avant l'import |
+| 112 | À cette étape, « Solution » puis « Squelette » | Diff contre le fichier d'origine (3 lignes surlignées), pas le fichier entier ; idem après rechargement de la fenêtre |
 
 ---
 

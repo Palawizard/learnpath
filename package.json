@@ -2,7 +2,7 @@
   "name": "learnpath",
   "displayName": "LearnPath",
   "description": "Joue des parcours d'apprentissage guidés dans ton propre projet",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
   "publisher": "Palawizard",
   "icon": "media/icon.png",

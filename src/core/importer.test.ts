@@ -284,6 +284,34 @@ describe('slug conflictuel (D44)', () => {
   })
 })
 
+describe('base du projet (D45)', () => {
+  it('fige les fichiers existants que les solutions touchent, et pas les autres', async () => {
+    await fs.mkdir(path.join(workspace, 'src'))
+    await fs.writeFile(path.join(workspace, 'src/panier.js'), 'export const ancien = 1\n')
+    expect((await importParcours(parcours(), workspace, hooks())).ok).toBe(true)
+    expect(JSON.parse(await read('.learn/baseline/panier.json'))).toEqual({
+      'src/panier.js': 'export const ancien = 1\n',
+    })
+  })
+
+  it('un réimport garde la base d’origine, pas le travail fait depuis', async () => {
+    await fs.mkdir(path.join(workspace, 'src'))
+    await fs.writeFile(path.join(workspace, 'src/panier.js'), 'origine\n')
+    await importParcours(parcours(), workspace, hooks())
+    await fs.writeFile(path.join(workspace, 'src/panier.js'), 'travail en cours\n')
+    await importParcours(parcours(), workspace, hooks())
+    expect(JSON.parse(await read('.learn/baseline/panier.json'))).toEqual({ 'src/panier.js': 'origine\n' })
+  })
+
+  it('un réimport annulé laisse la base précédente en place', async () => {
+    await fs.mkdir(path.join(workspace, 'src'))
+    await fs.writeFile(path.join(workspace, 'src/panier.js'), 'origine\n')
+    await importParcours(parcours(), workspace, hooks())
+    await importParcours(parcours(), workspace, hooks({ confirm: () => Promise.resolve(false) }))
+    expect(JSON.parse(await read('.learn/baseline/panier.json'))).toEqual({ 'src/panier.js': 'origine\n' })
+  })
+})
+
 describe('écriture interrompue', () => {
   it('ne laisse aucun fichier partiel si une écriture échoue en cours de route', async () => {
     // Un dossier là où le deuxième test doit être écrit : `rename` échouera.

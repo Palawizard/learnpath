@@ -1568,8 +1568,17 @@ Ordre : dernière solution antérieure, sinon le fichier du projet, sinon vide. 
 squelette → solution sous-compte ce qu'écrit un apprenant qui ne l'ouvre pas, et permet de
 passer sous la limite en remplissant le squelette.
 
-**Ce qui n'est pas fait.** Le diff du panneau (D41.2) passe toujours par `contentBefore` sans
-base : la solution d'une étape qui touche un fichier préexistant s'y affiche entière, sans
-diff. À la lecture de session, le disque a changé et la référence git de départ est
-optionnelle (D36) ; il faudrait figer la base dans `.learn/` à l'import. Un réimport en cours
-de parcours mesure depuis le travail déjà fait (sous-estime, ne refuse pas à tort).
+**La base est figée** dans `.learn/baseline/<slug>.json`, écrite par l'import avec le
+parcours. Deux raisons :
+
+- **Le panneau** (diff de D41.2) la relit à l'ouverture de session (`Session.baseline`) : à ce
+  moment, le disque contient déjà le travail de l'apprenant, et la référence git de départ
+  est optionnelle (D36). Sans base figée — parcours importé avant D45, fichier illisible —,
+  elle se lit comme vide et la solution s'affiche entière, comme avant.
+- **Un réimport du même slug** part de la base figée et ne complète par le disque que les
+  fichiers qu'elle ne connaît pas : il mesure depuis le projet d'origine, pas depuis le
+  travail déjà fait. Un réimport annulé ne l'efface pas (le rollback ne retire que ce que cet
+  import a créé).
+
+« Supprimer le parcours » vide `.learn/` hors `parcours/` : la base part avec la progression,
+et l'import suivant repart du projet tel qu'il est — c'est bien le nouveau point de départ.

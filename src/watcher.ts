@@ -79,7 +79,8 @@ export class Watcher implements vscode.Disposable {
       this.session.state,
       this.lastOutcome,
       this.running,
-      this.review
+      this.review,
+      this.session.baseline
     )
     if (model === undefined) return
     ParcoursPanel.current?.update(model)
