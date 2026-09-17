@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import * as path from 'node:path'
 import { loadParcours } from './core/parcours'
-import { checkPedagogy } from './core/pedagogy'
+import { checkPedagogy, readBaseline } from './core/pedagogy'
 import { importParcours } from './core/importer'
 import { removeParcours, restartParcours } from './core/reset'
 import { ParcoursPanel } from './webview/panel'
@@ -205,8 +205,9 @@ async function importCommand(): Promise<void> {
 
   // D40 à D42 : un parcours qui n'enseigne pas (étape trop grosse, aucun exemple, périmètre
   // tu) est refusé ici, avant la moindre écriture. Pas dans `loadParcours` : un parcours
-  // importé avant ces règles doit rester jouable quand la session le relit.
-  const pedagogy = checkPedagogy(parcours.value)
+  // importé avant ces règles doit rester jouable quand la session le relit. D45 : une étape
+  // qui modifie un fichier existant du projet se mesure contre ce fichier, pas contre vide.
+  const pedagogy = checkPedagogy(parcours.value, await readBaseline(parcours.value, workspace.uri.fsPath))
   if (!pedagogy.ok) {
     const channel = log()
     channel.appendLine(`Parcours refusé : ${file.fsPath}`)

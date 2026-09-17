@@ -8,7 +8,7 @@ dans git et dans `DECISIONS.md`).
 
 ## Date de dernière mise à jour
 
-2026-09-16
+2026-09-17
 
 ## À VÉRIFIER PAR UN HUMAIN AVANT DE PUBLIER
 
@@ -57,17 +57,21 @@ sur les deux (marketplace VS Code et Open VSX) — **il n'a pas été créé ni 
 ## Lot en cours
 
 **Lot 9 — Pédagogie**, sur `dev`. Fait côté code ; reste la vérification à l'écran (points
-97 à 110). Version **0.3.1** (correctif D44), installée dans VSCodium.
+97 à 110). Version **0.3.2** (correctif D45), installée dans VSCodium.
 
 ## Ce qui a été fait dans cette session
 
-**Correctif D44 — une série de parcours se joue depuis le même dossier.** Version **0.3.1**.
-Trois parcours découpés (`1-…`, `2-…`, `3-…`) dans `.learn/parcours/` rendaient tout import
-impossible : l'import refusait dès qu'un autre JSON était présent, alors que la
-réinitialisation garde exprès les JSON (D38). Désormais `state.json` désigne le parcours
-actif par son slug (`activeSlug`, `readImportedParcours`), l'import ne refuse que sur un
-parcours **en cours** d'un autre slug, avec le geste exact dans le message. 4 tests
-d'import, 2 de chargement ; QA manuelle 29b à 29d ; `README` (section série).
+**Correctif D45 — la taille d'une étape se mesure contre le fichier existant du projet.**
+Version **0.3.2**. Un parcours qui modifiait 3 lignes dans des handlers MSW existants était
+refusé (« 90 lignes à écrire ») : un fichier qu'aucune étape précédente n'écrit était compté
+en entier. `readBaseline` lit ces fichiers à l'import, `contentBefore` s'en sert en repli.
+3 tests dans `pedagogy.test.ts`, spec règle 6 mise à jour.
+
+**Reste ouvert (D45) :** le diff du panneau n'a pas cette base — la solution d'une étape sur
+un fichier préexistant s'affiche entière. Demande de figer la base dans `.learn/` à l'import.
+
+**Session d'avant — correctif D44** (0.3.1) : `state.json` désigne le parcours actif ; une
+série `1-…`, `2-…`, `3-…` se joue depuis le même dossier.
 
 ## Ce qui a été fait dans la session précédente (lot 9)
 

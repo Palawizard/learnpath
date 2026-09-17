@@ -1546,3 +1546,30 @@ est, par construction, déjà illisible.
 **Ce qui n'est pas fait.** Pas de sélecteur « importer un parcours déjà présent dans
 `.learn/parcours/` » : le sélecteur de fichiers y mène en deux clics. À rouvrir si les séries
 deviennent l'usage courant.
+
+---
+
+## D45 — Une étape sur un fichier existant du projet se mesure contre ce fichier
+
+**Le problème, constaté.** Un parcours sur `Inventaire/frontend` modifiait trois handlers MSW
+existants de 3 lignes chacun. L'import refusait : « la solution demande 90 lignes ».
+`contentBefore` ne connaissait que les solutions des étapes précédentes et comptait contre
+une chaîne vide tout fichier qu'aucune étape n'avait encore écrit — donc le fichier entier.
+La règle 6 de la spec parle de ce que l'étape « ajoute ou modifie » ; apprendre sur du vrai
+code, c'est justement modifier des fichiers qui existent. Le générateur a dû contourner en
+sortant ce branchement du parcours.
+
+**Décision : la base est le fichier tel qu'il est sur le disque au moment de l'import.**
+Ordre : dernière solution antérieure, sinon le fichier du projet, sinon vide. L'hôte appelle
+`readBaseline` (chemins repassés par `safeResolve`, lecture seule) et passe la table à
+`checkPedagogy` ; le noyau n'importe toujours pas `vscode`.
+
+**Écarté : le squelette comme base.** Il contient déjà la structure de l'étape ; mesurer
+squelette → solution sous-compte ce qu'écrit un apprenant qui ne l'ouvre pas, et permet de
+passer sous la limite en remplissant le squelette.
+
+**Ce qui n'est pas fait.** Le diff du panneau (D41.2) passe toujours par `contentBefore` sans
+base : la solution d'une étape qui touche un fichier préexistant s'y affiche entière, sans
+diff. À la lecture de session, le disque a changé et la référence git de départ est
+optionnelle (D36) ; il faudrait figer la base dans `.learn/` à l'import. Un réimport en cours
+de parcours mesure depuis le travail déjà fait (sous-estime, ne refuse pas à tort).

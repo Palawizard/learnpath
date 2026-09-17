@@ -118,8 +118,9 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
    de l'étape, elle efface le travail des étapes précédentes. C'est le mode de défaillance
    le plus fréquent du contenu généré, et l'import le refuse (D21).
 6. **5 à 10 étapes.** Une étape = une idée, et **au plus 20 lignes** à écrire : les lignes
-   que la solution N ajoute ou modifie par rapport à la solution N-1, hors lignes vides et
-   lignes de fermeture. Au-delà, l'import refuse et nomme l'étape (D41).
+   que la solution N ajoute ou modifie par rapport à la solution N-1 — ou, pour un fichier
+   qu'aucune étape précédente n'écrit, par rapport au fichier tel qu'il est dans le projet
+   (D45) —, hors lignes vides et lignes de fermeture. Au-delà, l'import refuse et nomme l'étape (D41).
 7. **La syntaxe se montre, la solution non** (D40). Chaque étape porte au moins un
    exemple résolu sur un autre sujet. Un exemple qui reprend plus de la moitié des lignes
    de la solution de l'étape est refusé.

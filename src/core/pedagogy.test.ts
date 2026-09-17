@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { loadParcours, type Parcours, type Step } from './parcours.js'
-import { checkPedagogy, contentBefore, MAX_STEP_LINES, stepSize } from './pedagogy.js'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { checkPedagogy, contentBefore, MAX_STEP_LINES, readBaseline, stepSize } from './pedagogy.js'
 
 function step(id: string, solution: string, overrides: Partial<Step> = {}): Step {
   return {
@@ -108,5 +110,39 @@ describe('contentBefore', () => {
     ])
     expect(contentBefore(p, 2, 'src/a.js')).toBe('v1')
     expect(contentBefore(p, 0, 'src/a.js')).toBe('')
+  })
+
+  it('retombe sur le fichier du projet quand aucune étape antérieure ne l’écrit (D45)', () => {
+    const p = parcours([step('1.1', 'v1')])
+    expect(contentBefore(p, 0, 'src/a.js', { 'src/a.js': 'existant' })).toBe('existant')
+    expect(contentBefore(parcours([step('1.1', 'v1'), step('1.2', 'v2')]), 1, 'src/a.js', { 'src/a.js': 'x' })).toBe('v1')
+  })
+})
+
+describe('readBaseline (D45)', () => {
+  it('mesure une étape sur un gros fichier existant par ce qu’elle y change', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnpath-baseline-'))
+    try {
+      const existing = lines(40)
+      mkdirSync(join(root, 'src'))
+      writeFileSync(join(root, 'src/a.js'), existing)
+      const p = parcours([step('1.1', existing + lines(3, 'const w'))])
+      expect(stepSize(p, 0)).toBe(43)
+      const baseline = await readBaseline(p, root)
+      expect(baseline).toEqual({ 'src/a.js': existing })
+      expect(stepSize(p, 0, baseline)).toBe(3)
+      expect(checkPedagogy(p, baseline).ok).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('ignore les fichiers absents : le parcours les crée', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnpath-baseline-'))
+    try {
+      expect(await readBaseline(parcours([step('1.1', 'v1')]), root)).toEqual({})
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

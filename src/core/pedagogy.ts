@@ -1,5 +1,7 @@
+import * as fs from 'node:fs/promises'
 import type { Parcours } from './parcours.js'
 import { type Result, ok, err } from './result.js'
+import { safeResolve } from './paths.js'
 import { isSignificant, significantAdditions } from './diff.js'
 
 /**
@@ -15,29 +17,54 @@ import { isSignificant, significantAdditions } from './diff.js'
  */
 export const MAX_STEP_LINES = 20
 
+/** Contenu des fichiers du projet avant le parcours, par chemin relatif (D45). */
+export type Baseline = Readonly<Record<string, string>>
+
 /**
  * Contenu d'un fichier juste avant l'étape `index` : la dernière solution antérieure qui
- * l'écrit, ou vide si aucune étape précédente ne l'a créé.
+ * l'écrit, sinon le fichier tel qu'il était dans le projet (D45), sinon vide.
  */
-export function contentBefore(parcours: Parcours, index: number, file: string): string {
+export function contentBefore(parcours: Parcours, index: number, file: string, baseline: Baseline = {}): string {
   for (let i = index - 1; i >= 0; i--) {
     const content = parcours.steps[i]?.solution[file]
     if (content !== undefined) return content
   }
-  return ''
+  return baseline[file] ?? ''
+}
+
+/**
+ * Lit sur le disque les fichiers que les solutions écrivent et qui existent déjà. Un chemin
+ * refusé par `safeResolve` est ignoré : `loadParcours` l'a déjà signalé.
+ *
+ * ponytail: lu à l'import, donc un réimport en cours de parcours mesure depuis le travail
+ * déjà fait et sous-estime les étapes. Figer la base à la première import si ça gêne.
+ */
+export async function readBaseline(parcours: Parcours, workspaceRoot: string): Promise<Baseline> {
+  const files = new Set(parcours.steps.flatMap((step) => Object.keys(step.solution)))
+  const baseline: Record<string, string> = {}
+  for (const file of files) {
+    const resolved = safeResolve(workspaceRoot, file)
+    if (!resolved.ok) continue
+    try {
+      baseline[file] = await fs.readFile(resolved.value, 'utf8')
+    } catch {
+      // Absent : le parcours le crée.
+    }
+  }
+  return baseline
 }
 
 /** Lignes significatives que l'étape `index` demande d'écrire, tous fichiers confondus. */
-export function stepSize(parcours: Parcours, index: number): number {
+export function stepSize(parcours: Parcours, index: number, baseline: Baseline = {}): number {
   const step = parcours.steps[index]
   if (step === undefined) return 0
   return Object.entries(step.solution).reduce(
-    (total, [file, content]) => total + significantAdditions(contentBefore(parcours, index, file), content),
+    (total, [file, content]) => total + significantAdditions(contentBefore(parcours, index, file, baseline), content),
     0
   )
 }
 
-export function checkPedagogy(parcours: Parcours): Result<void> {
+export function checkPedagogy(parcours: Parcours, baseline: Baseline = {}): Result<void> {
   const problems: string[] = []
 
   if (parcours.scope === undefined) {
@@ -55,14 +82,14 @@ export function checkPedagogy(parcours: Parcours): Result<void> {
       )
     }
 
-    const size = stepSize(parcours, index)
+    const size = stepSize(parcours, index, baseline)
     if (size > MAX_STEP_LINES) {
       problems.push(
         `${at} : la solution demande ${size} lignes à écrire, le maximum est ${MAX_STEP_LINES}. Coupe l’étape en deux`
       )
     }
 
-    const added = addedLines(parcours, index)
+    const added = addedLines(parcours, index, baseline)
     for (const example of step.examples ?? []) {
       if (copiesSolution(example.code, added)) {
         problems.push(
@@ -82,12 +109,12 @@ export function checkPedagogy(parcours: Parcours): Result<void> {
 }
 
 /** Lignes (normalisées) ajoutées par la solution de l'étape. */
-function addedLines(parcours: Parcours, index: number): ReadonlySet<string> {
+function addedLines(parcours: Parcours, index: number, baseline: Baseline): ReadonlySet<string> {
   const step = parcours.steps[index]
   const lines = new Set<string>()
   if (step === undefined) return lines
   for (const [file, content] of Object.entries(step.solution)) {
-    const before = new Set(contentBefore(parcours, index, file).split('\n').map(normalize))
+    const before = new Set(contentBefore(parcours, index, file, baseline).split('\n').map(normalize))
     for (const line of content.split('\n')) {
       const normalized = normalize(line)
       if (!before.has(normalized)) lines.add(normalized)
