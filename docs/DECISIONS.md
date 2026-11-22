@@ -466,7 +466,7 @@ Deux fautes distinctes tombent dans le même filet, et sont nommées différemme
 tout l'intérêt, l'auteur du parcours n'a pas la même correction à faire :
 
 - « la solution de l'étape « 1.4 — … » ne passe pas ses propres tests » ;
-- "la solution de l'étape "1.4 - ..." casse l'étape "1.2 - ..."".
+- « la solution de l'étape « 1.4 — … » casse l'étape « 1.2 — … » ».
 
 La copie exclut `node_modules` et `.git`, et relie `node_modules` par un lien (jonction
 sous Windows) : copier des dizaines de milliers de fichiers pour lancer Vitest serait
@@ -802,8 +802,8 @@ sans nous. Vérifié en vrai sur `examples/demo-project` : import complet avec
 
 ## D30 - "La solution ne passe pas" et "le fichier de test ne se collecte pas" sont deux diagnostics
 
-**Contexte.** `verifyAllGreen` a refusé un vrai parcours avec "la solution de l'étape 1.1
-ne passe pas ses propres tests (Vitest failed to find the current suite)". La vérification
+**Contexte.** `verifyAllGreen` a refusé un vrai parcours avec « la solution de l'étape 1.1
+ne passe pas ses propres tests (Vitest failed to find the current suite) ». La vérification
 avait raison de refuser, mais le diagnostic était faux : la solution était juste, c'est le
 fichier de test qui était mal formé (un `it()` hors `describe()`, ou un `describe()`
 asynchrone) et aucun test n'avait été collecté. Le message envoyait l'auteur corriger le
@@ -1512,7 +1512,7 @@ gabarit livré.
 comme le demande désormais le prompt (D42), en trois parcours rangés dans
 `.learn/parcours/` : `1-…-donnees`, `2-…-ecrans`, `3-…-creation`. L'import du premier a été
 refusé : « Le dossier .learn/ contient déjà le parcours « 2-…, 3-… ». Réinitialise-le avant
-d'importer". Réinitialiser n'aurait rien changé.
+d'importer ». Réinitialiser n'aurait rien changé.
 
 Deux règles se contredisaient :
 
