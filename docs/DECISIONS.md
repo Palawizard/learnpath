@@ -465,7 +465,7 @@ après l'étape N exiger que les étapes 1..N soient **toutes** vertes.
 Deux fautes distinctes tombent dans le même filet, et sont nommées différemment - c'est
 tout l'intérêt, l'auteur du parcours n'a pas la même correction à faire :
 
-- "la solution de l'étape "1.4 - ..." ne passe pas ses propres tests" ;
+- « la solution de l'étape « 1.4 — … » ne passe pas ses propres tests » ;
 - "la solution de l'étape "1.4 - ..." casse l'étape "1.2 - ..."".
 
 La copie exclut `node_modules` et `.git`, et relie `node_modules` par un lien (jonction
@@ -1511,7 +1511,7 @@ gabarit livré.
 **Le problème, constaté.** Une fonctionnalité trop grosse pour dix étapes a été découpée,
 comme le demande désormais le prompt (D42), en trois parcours rangés dans
 `.learn/parcours/` : `1-…-donnees`, `2-…-ecrans`, `3-…-creation`. L'import du premier a été
-refusé : "Le dossier .learn/ contient déjà le parcours "2-..., 3-...". Réinitialise-le avant
+refusé : « Le dossier .learn/ contient déjà le parcours « 2-…, 3-… ». Réinitialise-le avant
 d'importer". Réinitialiser n'aurait rien changé.
 
 Deux règles se contredisaient :
