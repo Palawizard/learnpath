@@ -21,7 +21,7 @@
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 /usr/lib/python3.14/ast.py:46: in parse
     return compile(source, filename, mode, flags,
-E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/h/.learn/tests/test_step_1_1.py", line 2
+E     File "/tmp/learnpath-fixtures/demo-python/h/.learn/tests/test_step_1_1.py", line 2
 E       assert True
 E       ^^^^^^
 E   IndentationError: expected an indented block after function definition on line 1</error></testcase></testsuite></testsuites>
