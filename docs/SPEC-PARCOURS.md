@@ -1,4 +1,4 @@
-# Format de parcours — spécification v1
+# Format de parcours - spécification v1
 
 Contrat entre le générateur (Claude Code / Codex, hors extension) et l'extension VSCode.
 Cible du prototype : JS/TS + Vitest, 5 à 10 étapes par fonctionnalité.
@@ -101,8 +101,8 @@ les tests deviennent la suite de tests réelle du projet en fin de parcours.
 Un fichier de test mal formé ne se **collecte** pas : Vitest n'y trouve aucun test et
 n'en exécute aucun. Vu de loin ça ressemble à un test rouge, sauf que le test n'existe
 pas. C'est la faute la plus coûteuse du générateur, parce qu'elle ne se voit qu'à
-l'import et qu'elle produit un message incompréhensible (« Vitest failed to find the
-current suite », que Vitest lui-même attribue à un de ses bugs).
+l'import et qu'elle produit un message incompréhensible ("Vitest failed to find the
+current suite", que Vitest lui-même attribue à un de ses bugs).
 
 1. **Chaque `it()` est imbriqué dans un `describe()`**, jamais au niveau racine du
    fichier.
@@ -111,12 +111,12 @@ current suite », que Vitest lui-même attribue à un de ses bugs).
 3. **Aucun `it()` ni `describe()` créé ailleurs** : pas dans un hook (`beforeEach`), pas
    dans un autre `it()`, pas dans un `setTimeout`, pas dans un `.then()`. La collecte est
    terminée quand ces codes s'exécutent.
-4. **Avant de rendre le JSON, exécute réellement chaque fichier de test**, y compris —
-   et surtout — avant que le code de l'étudiant existe. Ce qu'on vérifie là n'est pas
+4. **Avant de rendre le JSON, exécute réellement chaque fichier de test**, y compris -
+   et surtout - avant que le code de l'étudiant existe. Ce qu'on vérifie là n'est pas
    qu'il échoue, c'est qu'il **se collecte** : Vitest doit annoncer le bon nombre de
    tests pour ce fichier.
 
-**« Le test échoue » et « le test ne s'exécute pas » ne sont pas la même chose.** Un
+**"Le test échoue" et "le test ne s'exécute pas" ne sont pas la même chose.** Un
 fichier mal formé échoue aussi, mais pour la mauvaise raison, et l'extension le refuse.
 
 | Ce que dit Vitest | Ce que ça veut dire |
@@ -130,13 +130,13 @@ fichier mal formé échoue aussi, mais pour la mauvaise raison, et l'extension l
 chaque import. Deux formes, selon le projet (D31) :
 
 - **le projet a un `vite.config.*`** : la config générée l'importe et fusionne avec
-  `mergeConfig`. Le projet apporte ses plugins (`@vitejs/plugin-react`, Vue, Svelte…), ses
+  `mergeConfig`. Le projet apporte ses plugins (`@vitejs/plugin-react`, Vue, Svelte...), ses
   alias et son `resolve` ; on n'ajoute que le bloc `test`. Le `test` du projet, lui, est
   écarté : sa config de test n'est ni lue ni appliquée, sinon ses `include` s'ajouteraient
   aux nôtres et la vérification à l'import lancerait ses tests à lui.
 - **pas de config Vite** : config autonome, comme avant.
 
-`vitest.config.*` du projet n'est jamais lu — c'est sa configuration de test, elle est
+`vitest.config.*` du projet n'est jamais lu - c'est sa configuration de test, elle est
 sacrée (D3).
 
 Ce qu'aucune config Vite ne contient, c'est l'environnement de test. Un test de composant
@@ -156,10 +156,10 @@ C'est le garde-fou le plus important, il attrape les parcours bidons :
 4. **Appliquer les `solution` étape par étape dans une copie temporaire du workspace**, et
    après chaque étape N exiger que les étapes 1..N soient **toutes vertes**. Deux fautes
    distinctes sont attrapées là, et nommées différemment :
-   - la solution de l'étape N ne passe pas ses propres tests — l'étudiant n'a aucune chance ;
-   - la solution de l'étape N casse une étape précédente — elle n'était pas le contenu
+   - la solution de l'étape N ne passe pas ses propres tests - l'étudiant n'a aucune chance ;
+   - la solution de l'étape N casse une étape précédente - elle n'était pas le contenu
      complet du fichier ;
-   - le fichier de test de l'étape N ne se collecte pas — aucun test n'a tourné, la
+   - le fichier de test de l'étape N ne se collecte pas - aucun test n'a tourné, la
      solution n'est pas en cause, c'est le fichier de test qui est mal formé.
    Ça coûte un run de tests par étape (mesuré : environ 0,8 s par étape sur le parcours
    panier, cinq étapes). Ce n'est pas optionnel : c'est ce qui distingue un parcours
@@ -198,7 +198,7 @@ fusionner la config. L'étudiant repart avec du code testé, pas avec un badge.
 **Le prompt vit dans [`prompts/generer-parcours.md`](../prompts/generer-parcours.md), et
 nulle part ailleurs.** Il n'est recopié ni ici, ni dans le README, ni dans le code de la
 webview : il a existé en deux exemplaires divergents, et un parcours a été généré avec une
-version périmée — d'où D37.
+version périmée - d'où D37.
 
 Trois champs y sont marqués, et eux seuls : `{{FONCTIONNALITE}}`, `{{NIVEAU}}` et
 `{{FICHIERS}}` (facultatif, sa ligne disparaît quand il est vide). `composePrompt`
@@ -206,6 +206,6 @@ Trois champs y sont marqués, et eux seuls : `{{FONCTIONNALITE}}`, `{{NIVEAU}}` 
 un champ renommé se voit à la compilation du prompt, pas dans le presse-papiers de
 l'utilisateur.
 
-L'extension le compose elle-même — commande **LearnPath : Générer le prompt du parcours…**,
-ou le bouton « Générer le prompt » de l'accueil. Le prompt composé est affiché en entier et
+L'extension le compose elle-même - commande **LearnPath : Générer le prompt du parcours...**,
+ou le bouton "Générer le prompt" de l'accueil. Le prompt composé est affiché en entier et
 modifiable avant d'être copié : voir `UX.md`.
