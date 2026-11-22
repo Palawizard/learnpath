@@ -7,7 +7,7 @@ import type { Assertion, RawResult, TestFile } from './parse.js'
  *
  * Le format est produit par pytest lui-même, pas par un humain : `<testcase>` à plat, sans
  * CDATA ni espace de noms. Un lecteur par expressions régulières suffit, et évite une
- * dépendance runtime pour lire quatre balises (règle 7 d'AGENTS.md). Comme `parseResult`,
+ * dépendance runtime pour lire quatre balises (l'extension doit rester légère). Comme `parseResult`,
  * rien ici ne lève : le rapport vient d'un processus qu'on peut tuer en route.
  *
  * Deux formes de `<testcase>`, vérifiées sur de vraies sorties (`__fixtures__/pytest/`) :

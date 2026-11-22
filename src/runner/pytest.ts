@@ -32,7 +32,7 @@ export interface PytestOptions extends RunOptions {
  * - **`--continue-on-collection-errors`** : sans lui, une étape pas encore commencée
  *   interrompt toute la session et les étapes précédentes passent pour des régressions.
  * - **`-p no:cacheprovider` et `PYTHONDONTWRITEBYTECODE`** : ni `.pytest_cache` ni
- *   `__pycache__` à côté du code de l'utilisateur, hors de `.learn/` (règle 3, comme D25).
+ *   `__pycache__` à côté du code de l'utilisateur, hors de `.learn/` (comme D25).
  * - **`--junitxml` vers un temporaire** : le rapport structuré natif de pytest, sans plugin
  *   à installer. Même raison que `--outputFile` pour Vitest : on ne lit jamais stdout.
  */
