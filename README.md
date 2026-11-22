@@ -13,11 +13,11 @@ Vert, on passe à la suivante.
 
 ## Ce que ça fait, et ce que ça ne fait pas
 
-- **Ça fait** : afficher une étape, surveiller tes sauvegardes, lancer les tests de
+- Ça fait : afficher une étape, surveiller tes sauvegardes, lancer les tests de
   l'étape et des étapes précédentes, avancer tout seul, te **montrer la syntaxe** dont
   l'étape a besoin sur un exemple, donner des indices un par un, un squelette à compléter,
   et révéler la solution — en montrant ce que l'étape change — si tu bloques.
-- **Ça ne fait pas** : générer le parcours. C'est un fichier JSON produit en amont par
+- Ça ne fait pas : générer le parcours. C'est un fichier JSON produit en amont par
   l'agent de code que tu utilises déjà (Claude Code, Codex, Copilot Chat, ce que tu veux).
 
 **L'extension n'appelle aucun modèle d'IA et ne fait aucun appel réseau.** Pas de clé
@@ -82,8 +82,8 @@ fonctionnalité.
 Un formulaire court :
 
 - **la fonctionnalité à implémenter** — le seul champ obligatoire ;
-- **ton niveau en programmation** : débutant, intermédiaire ou avancé ;
-- **ton niveau dans le langage ou le framework** : « je découvre la syntaxe », « je connais
+- ton niveau en programmation : débutant, intermédiaire ou avancé ;
+- ton niveau dans le langage ou le framework : « je découvre la syntaxe », « je connais
   les bases » ou « à l'aise ». C'est lui qui compte le plus : il décide combien d'exemples
   de syntaxe tu verras, si chaque étape a un squelette, et leur taille ;
 - **ce que tu connais déjà**, facultatif ;
@@ -238,7 +238,7 @@ mêmes étapes, mêmes indices, même vérification à l'import, même « Refair
 - Côté Python, la config pytest du projet (fixtures de `conftest.py`, plugins déclarés dans
   `pyproject.toml`) n'est pas appliquée aux tests du parcours : chaque fichier de test doit
   se suffire à lui-même. Les plugins pytest installés dans l'environnement restent chargés.
-- **Yarn Plug'n'Play n'est pas supporté** : passe le projet en `nodeLinker: node-modules`.
+- Yarn Plug'n'Play n'est pas supporté : passe le projet en `nodeLinker: node-modules`.
 - **Un parcours à la fois** par projet.
 - Un test qui dépasse son délai est signalé comme tel, mais Vitest ne transmet pas la
   durée dans son rapport JSON : le message reste générique.
