@@ -65,7 +65,7 @@ describe.skipIf(!pytestPresent)('pytest réel', { timeout: 120_000 }, () => {
     const r = await importParcours(exemple, dir, hooks)
     expect(r.ok ? '' : r.error).toBe('')
     expect((await fs.readdir(dir)).sort()).toEqual(['.gitignore', '.learn'])
-    // Règle 3 : ni bytecode ni cache pytest, ni dans le projet ni sous .learn/.
+    // Comme D25 : ni bytecode ni cache pytest, ni dans le projet ni sous .learn/.
     expect(await caches(dir)).toEqual([])
   })
 

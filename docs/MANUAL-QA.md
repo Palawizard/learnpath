@@ -233,6 +233,5 @@ Importer `examples/exemple-panier.json` dans `examples/demo-project`.
 
 ## Quand c'est fini
 
-Reporte le résultat dans `docs/HANDOFF.md`, section "Ce qui n'a pas pu être vérifié" :
-ce qui est confirmé sort de la liste, ce qui a échoué devient une ligne dans "Ce qui
-bloque". Sans ça, la publication reste en attente.
+Note le résultat de chaque vérification : ce qui a échoué devient un point qui
+bloque. Sans ça, la publication reste en attente.
