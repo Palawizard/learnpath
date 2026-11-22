@@ -5,7 +5,7 @@ Chaque lot doit finir avec `npm run compile` et `npm test` au vert.
 
 ---
 
-## Lot 0 — Socle
+## Lot 0 - Socle
 
 **But** : l'extension s'active et affiche un panneau vide.
 
@@ -14,12 +14,12 @@ Chaque lot doit finir avec `npm run compile` et `npm test` au vert.
 - `src/extension.ts` : activation, commande `learnpath.open` qui ouvre une webview vide
 - `.vscode/launch.json` fonctionnel (F5 lance l'Extension Development Host)
 
-**Fini quand** : F5 ouvre une fenêtre, la commande « LearnPath: Ouvrir » affiche un panneau
+**Fini quand** : F5 ouvre une fenêtre, la commande "LearnPath: Ouvrir" affiche un panneau
 avec le titre du projet.
 
 ---
 
-## Lot 1 — Types et validation du parcours
+## Lot 1 - Types et validation du parcours
 
 **But** : charger un JSON de parcours et le refuser proprement s'il est mauvais.
 
@@ -35,7 +35,7 @@ parcours sans `runner`, avec un `tests.file` contenant `..`, avec deux étapes d
 
 ---
 
-## Lot 2 — Import dans le workspace
+## Lot 2 - Import dans le workspace
 
 **But** : matérialiser un parcours sur disque.
 
@@ -52,7 +52,7 @@ complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en �
 
 ---
 
-## Lot 3 — Runner et classification
+## Lot 3 - Runner et classification
 
 **But** : le cœur technique. Lancer, parser, classer.
 
@@ -69,9 +69,9 @@ complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en �
 
 ---
 
-## Lot 4 — Watcher et boucle de progression
+## Lot 4 - Watcher et boucle de progression
 
-**But** : la magie « ça avance tout seul ».
+**But** : la magie "ça avance tout seul".
 
 - `src/watcher.ts` : `onDidSaveTextDocument`, filtre sur `expected.files` de l'étape
   courante, debounce 500ms, annule un run en cours si un nouveau save arrive
@@ -86,15 +86,15 @@ passer l'UI à l'étape 2 sans aucun clic.
 
 ---
 
-## Lot 5 — Interface du panneau
+## Lot 5 - Interface du panneau
 
 **But** : rendre le tout agréable.
 
 - Rendu markdown de `explanation`
 - Compteur `Étape n/N`, barre de progression
-- Bloc « Attendu » : contrat + critères d'acceptation
+- Bloc "Attendu" : contrat + critères d'acceptation
 - Hints révélés un par un
-- Bouton « Solution » avec confirmation, marque l'étape comme révélée dans le state
+- Bouton "Solution" avec confirmation, marque l'étape comme révélée dans le state
 - Affichage différencié des trois états rouges (voir `UX.md`)
 - Thème : utiliser les variables CSS de VSCode, jamais de couleur en dur
 
@@ -102,7 +102,7 @@ passer l'UI à l'étape 2 sans aucun clic.
 
 ---
 
-## Lot 6 — Fiabilisation
+## Lot 6 - Fiabilisation
 
 Le lot 6 initial mélangeait la fiabilisation et la publication. Les deux ne se jugent pas
 avec les mêmes critères : la publication attend un produit dont on est sûr. Scindé.
@@ -128,7 +128,7 @@ projet qui a déjà Vitest.
 
 ---
 
-## Lot 7 — Publication
+## Lot 7 - Publication
 
 - README pour l'utilisateur final, emplacements des captures
 - LICENSE, métadonnées du paquet, icône, `.vscodeignore`, VSIX
