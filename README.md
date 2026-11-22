@@ -206,6 +206,5 @@ machine, et l'extension fonctionne hors ligne.
 
 Le code, les décisions techniques et le format de parcours sont documentés dans le
 dépôt : [github.com/Palawizard/learnpath](https://github.com/Palawizard/learnpath).
-Le point d'entrée pour un contributeur est [AGENTS.md](AGENTS.md).
 
 MIT.

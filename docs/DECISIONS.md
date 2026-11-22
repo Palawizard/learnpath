@@ -227,7 +227,7 @@ lancer un vrai `npm i`. La valeur par défaut est le `spawn` réel.
 
 ## D13 - Le `.gitignore` est créé s'il n'existe pas
 
-**Contexte.** `IMPLEMENTATION_PLAN.md` disait "ajouter au `.gitignore` **s'il existe**".
+**Contexte.** Le plan initial disait "ajouter au `.gitignore` **s'il existe**".
 Un projet sans `.gitignore` verrait alors `state.json` et `.result.json` commités.
 
 **Décision.** On crée le `.gitignore` s'il est absent, avec un en-tête `# LearnPath` et
@@ -236,7 +236,7 @@ trimmé, donc réimporter ne duplique rien, et une entrée déjà présente à l
 réécrite.
 
 **Conséquences.** C'est le seul fichier hors `.learn/` que l'import touche. C'est une
-entorse assumée à "rien en dehors de `.learn/`" : sans elle, la règle 3 d'`AGENTS.md`
+entorse assumée à "rien en dehors de `.learn/`" : sans elle, cette règle
 protège des fichiers que git, lui, ne protège pas.
 
 ---
@@ -371,8 +371,8 @@ fermée. `src/core/exec.ts` :
 ## D19 - `markdown-it` en dépendance runtime pour rendre `explanation`
 
 **Contexte.** `explanation` est du markdown produit par un LLM et affiché dans une webview.
-C'est la seule chaîne du projet qui est à la fois non fiable et rendue en HTML. La règle 6
-d'`AGENTS.md` impose de discuter toute nouvelle dépendance runtime : jusqu'ici il n'y avait
+C'est la seule chaîne du projet qui est à la fois non fiable et rendue en HTML. Le projet
+impose de discuter toute nouvelle dépendance runtime : jusqu'ici il n'y avait
 qu'`ajv`.
 
 **Décision.** On ajoute `markdown-it` (~14.x). Les alternatives écartées :
@@ -605,7 +605,8 @@ que lire ses dépendances. C'est faux, et deux fois :
   (`findNearestNodeModules`, `loadConfigFromBundledFile`). Ce chemin n'est pas configurable.
 
 Le lien de jonction renvoyait donc ces écritures dans le `node_modules` du projet de
-l'utilisateur, hors de `.learn/`. C'est la règle 3 d'`AGENTS.md` qui saute, à chaque import.
+l'utilisateur, hors de `.learn/`. C'est la règle "rien hors de `.learn/`" qui
+saute, à chaque import.
 
 **Décision.** Deux verrous, l'un pour le cas normal, l'autre pour le bac à sable.
 
@@ -1001,8 +1002,8 @@ le bon côté du compromis, pas une consolation.
 annonçait cette écriture, et le `ResolvedPath` sur ce chemin. Le clic ne calcule plus aucun
 chemin dans le projet de l'utilisateur - la clé du fichier ne sert qu'à lire
 `step.solution`, jamais à construire un chemin. `applySolution` est remplacé par
-`revealCurrentSolution`, qui n'écrit plus que `.learn/state.json`. La règle 3 d'`AGENTS.md`
-n'a plus d'exception.
+`revealCurrentSolution`, qui n'écrit plus que `.learn/state.json`. La règle
+"rien hors de `.learn/`" n'a plus d'exception.
 
 **`planSolution` reste**, et reste testé : `verifyAllGreen` l'utilise pour appliquer les
 solutions dans sa copie temporaire du workspace (D21). C'est désormais le seul chemin qui
@@ -1011,7 +1012,7 @@ solutions dans sa copie temporaire du workspace (D21). C'est désormais le seul 
 L'étape reste marquée révélée dans le state, et le récapitulatif de fin est inchangé : pas
 de pénalité, juste une information honnête.
 
-**Coloration syntaxique sans dépendance.** Aucune nouvelle dépendance runtime (règle 6) :
+**Coloration syntaxique sans dépendance.** Aucune nouvelle dépendance runtime :
 un tokenizer d'une seule expression régulière dans `render.ts`, quatre catégories
 (commentaire, chaîne, nombre, mot-clé), et les couleurs prises dans les variables du thème
 (`--vscode-symbolIcon-*`), donc correct en thème clair, sombre et contrasté. Il couvre la
@@ -1118,7 +1119,7 @@ réintroduit, en connaissance de cause. Elle est bornée par trois choses, dans 
 3. le plan (`planRedo`) est calculé avant toute écriture, et c'est **lui** qui est affiché
    dans la confirmation.
 
-La règle 3 d'`AGENTS.md` et la section correspondante du `README` sont mises à jour : "rien
+La règle du projet et la section correspondante du `README` sont mises à jour : "rien
 hors de `.learn/`" devient "rien hors de `.learn/` sans un geste explicite, et jamais hors
 de la liste montrée". Un test de non-régression compare l'arborescence complète du projet
 avant et après une reprise : seuls le fichier de l'étape et `.learn/state.json` diffèrent.
@@ -1248,7 +1249,7 @@ formulaire fonctionne quand même. Un dossier peut recevoir son `package.json` �
 suivante ; ce n'est pas à un formulaire de prompt d'en décider, et une porte fermée ici ne
 protège de rien - l'import, lui, valide pour de bon.
 
-**Ce qui n'est pas fait.** Aucun appel de modèle, évidemment (règle 1) : l'extension compose
+**Ce qui n'est pas fait.** Aucun appel de modèle, évidemment : l'extension compose
 du texte et le met dans le presse-papiers, l'agent reste celui de l'utilisateur. Pas
 d'historique des prompts composés, pas de préremplissage depuis le parcours en cours : à
 rouvrir si quelqu'un le demande.
