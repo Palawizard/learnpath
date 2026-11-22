@@ -16,13 +16,13 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 
 ## Modules
 
-### `src/core/` — logique métier, sans `vscode`
+### `src/core/` - logique métier, sans `vscode`
 
 | Fichier | Responsabilité |
 |---|---|
 | `parcours.ts` | Types du parcours, chargement, validation via JSON Schema |
 | `importer.ts` | Écrit `.learn/`, les tests, la config Vitest, joue `setup` |
-| `verify.ts` | Vérifications d'import : « tout doit être rouge » (D5) et « les solutions cumulées doivent tout laisser vert », dans une copie temporaire du workspace (D21) |
+| `verify.ts` | Vérifications d'import : "tout doit être rouge" (D5) et "les solutions cumulées doivent tout laisser vert", dans une copie temporaire du workspace (D21) |
 | `reveal.ts` | Indice suivant, squelette affiché (D41), marquage de la solution comme révélée ; `planSolution`, qui n'écrit plus que pour `verify.ts` (D34) |
 | `reset.ts` | Recommencer depuis l'étape 1, ou nettoyer `.learn/` en gardant les parcours JSON générés (D23, D38) |
 | `git.ts` | Plomberie git : commit dans un index temporaire, références `refs/learnpath*`, restauration de chemins. Ne touche jamais HEAD, la branche ni l'index (D36) |
@@ -37,7 +37,7 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 | `paths.ts` | Résolution et **validation de sécurité** des chemins du parcours |
 | `exec.ts` | Lancement des CLI sans shell, y compris sous Windows (D18, D24) ; résolution du CLI Vitest et refus explicite de Yarn PnP ; résolution de l'interpréteur Python et des commandes de setup Python (D39) |
 
-### `src/runner/` — exécution des tests, sans `vscode`
+### `src/runner/` - exécution des tests, sans `vscode`
 
 | Fichier | Responsabilité |
 |---|---|
@@ -52,7 +52,7 @@ l'utilisateur et de son agent. L'extension ne fait que consommer le fichier.
 `classify.ts` est le module qui fait la qualité perçue du produit. À soigner et à
 tester avec de vraies fixtures.
 
-### `src/` — couche VSCode
+### `src/` - couche VSCode
 
 | Fichier | Responsabilité |
 |---|---|
@@ -60,7 +60,7 @@ tester avec de vraies fixtures.
 | `watcher.ts` | `onDidSaveTextDocument`, rien d'autre : le debounce, l'annulation et la décision vivent dans `core/progression.ts` |
 | `webview/panel.ts` | Branchement `vscode` de la vue de la barre d'activité : `WebviewViewProvider`, `postMessage`, révélation sans focus |
 
-### `webview/` — interface du panneau
+### `webview/` - interface du panneau
 
 Sans framework. Le rendu est séparé de `vscode` pour être testable (**D20**) :
 
@@ -75,8 +75,8 @@ Sans framework. Le rendu est séparé de `vscode` pour être testable (**D20**) 
 | `webview/panel.ts` | Le reste, c'est-à-dire `vscode` (fournisseur de la vue `learnpath.parcours`) | oui |
 | `webview/prompt-panel.ts` | Onglet d'éditeur du générateur de prompt : lit le gabarit livré, compose, copie | oui |
 
-Affiche : titre, compteur `Étape n/N`, barre de progression, « À propos » (intro et
-périmètre), explication en markdown, exemples de syntaxe, bloc « Attendu » avec le test
+Affiche : titre, compteur `Étape n/N`, barre de progression, "À propos" (intro et
+périmètre), explication en markdown, exemples de syntaxe, bloc "Attendu" avec le test
 repliable, indices progressifs, squelette, solution en diff, bouton Solution, zone d'état `aria-live`, bandeau
 de régression séparé, récapitulatif de fin.
 
@@ -101,7 +101,7 @@ branche parallèle.
 
 Une étape validée (au vert, sans régression) déclenche en plus `recordCheckpoint` : le
 commit de l'étape sur `refs/learnpath/<slug>/<id>`. Il suit la validation, pas l'avancée du
-state — `autoAdvance` à `false` n'y change rien. Une erreur git y est journalisée et
+state - `autoAdvance` à `false` n'y change rien. Une erreur git y est journalisée et
 n'interrompt pas la progression (D36).
 
 ## Flux : refaire une étape
@@ -137,11 +137,11 @@ La sortie brute de Vitest n'est plus écrite ici : chaque run écrit son rapport
 temporaire système qu'il supprime ensuite (D14).
 
 Rien en dehors de `.learn/` sans un geste explicite de l'utilisateur : depuis D34,
-« Solution » affiche le code dans le panneau au lieu de l'écrire. La seule écriture de
+"Solution" affiche le code dans le panneau au lieu de l'écrire. La seule écriture de
 solution restante vise la copie temporaire de `verifyAllGreen`, jamais le projet.
 
 Deux exceptions, toutes deux déclenchées à la main et précédées d'une confirmation qui liste
-les fichiers : le déplacement des tests en fin de parcours (D17), et **« Refaire l'étape »**
+les fichiers : le déplacement des tests en fin de parcours (D17), et **"Refaire l'étape"**
 (D36), borné aux `expected.files` de l'étape visée.
 
 Dans le dépôt git de l'utilisateur, LearnPath écrit des objets et des références sous
