@@ -21,7 +21,7 @@ PYTHONDONTWRITEBYTECODE=1 python -m pytest -c .learn/pytest.ini --rootdir=. -p n
 | `e-nom-pas-encore-ecrit.xml` | solution de l'étape 1.1 | 1.1 et 1.2 | 1.1 passe ; 1.2 ne se collecte pas : `ImportError: cannot import name 'ajouter_article' from 'panier'` |
 | `f-module-inattendu.xml` | absent, le test importe `helpers_inexistants` | 1.1 | `No module named 'helpers_inexistants'` : pas un fichier attendu |
 | `g-messages-frequents.xml` | module de test ad hoc `test_step_2_1.py` | 2.1 | formes traduites par `humanize` : `AttributeError: module … has no attribute`, `takes 0 positional arguments but 1 was given`, `missing 1 required positional argument`, `KeyError`, `'NoneType' object is not subscriptable`, `NameError`, et un `assert … == …` |
-| `h-test-mal-forme.xml` | — | un test mal indenté | `IndentationError` à la collecte |
+| `h-test-mal-forme.xml` | - | un test mal indenté | `IndentationError` à la collecte |
 
 Constats qui ont dicté le code :
 

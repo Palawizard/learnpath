@@ -5,7 +5,7 @@ Chaque lot doit finir avec `npm run compile` et `npm test` au vert.
 
 ---
 
-## Lot 0 — Socle
+## Lot 0 - Socle
 
 **But** : l'extension s'active et affiche un panneau vide.
 
@@ -14,12 +14,12 @@ Chaque lot doit finir avec `npm run compile` et `npm test` au vert.
 - `src/extension.ts` : activation, commande `learnpath.open` qui ouvre une webview vide
 - `.vscode/launch.json` fonctionnel (F5 lance l'Extension Development Host)
 
-**Fini quand** : F5 ouvre une fenêtre, la commande « LearnPath: Ouvrir » affiche un panneau
+**Fini quand** : F5 ouvre une fenêtre, la commande "LearnPath: Ouvrir" affiche un panneau
 avec le titre du projet.
 
 ---
 
-## Lot 1 — Types et validation du parcours
+## Lot 1 - Types et validation du parcours
 
 **But** : charger un JSON de parcours et le refuser proprement s'il est mauvais.
 
@@ -35,7 +35,7 @@ parcours sans `runner`, avec un `tests.file` contenant `..`, avec deux étapes d
 
 ---
 
-## Lot 2 — Import dans le workspace
+## Lot 2 - Import dans le workspace
 
 **But** : matérialiser un parcours sur disque.
 
@@ -52,7 +52,7 @@ complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en �
 
 ---
 
-## Lot 3 — Runner et classification
+## Lot 3 - Runner et classification
 
 **But** : le cœur technique. Lancer, parser, classer.
 
@@ -69,9 +69,9 @@ complète et `npx vitest run --config .learn/vitest.config.mts` s'exécute (en �
 
 ---
 
-## Lot 4 — Watcher et boucle de progression
+## Lot 4 - Watcher et boucle de progression
 
-**But** : la magie « ça avance tout seul ».
+**But** : la magie "ça avance tout seul".
 
 - `src/watcher.ts` : `onDidSaveTextDocument`, filtre sur `expected.files` de l'étape
   courante, debounce 500ms, annule un run en cours si un nouveau save arrive
@@ -86,15 +86,15 @@ passer l'UI à l'étape 2 sans aucun clic.
 
 ---
 
-## Lot 5 — Interface du panneau
+## Lot 5 - Interface du panneau
 
 **But** : rendre le tout agréable.
 
 - Rendu markdown de `explanation`
 - Compteur `Étape n/N`, barre de progression
-- Bloc « Attendu » : contrat + critères d'acceptation
+- Bloc "Attendu" : contrat + critères d'acceptation
 - Hints révélés un par un
-- Bouton « Solution » avec confirmation, marque l'étape comme révélée dans le state
+- Bouton "Solution" avec confirmation, marque l'étape comme révélée dans le state
 - Affichage différencié des trois états rouges (voir `UX.md`)
 - Thème : utiliser les variables CSS de VSCode, jamais de couleur en dur
 
@@ -102,7 +102,7 @@ passer l'UI à l'étape 2 sans aucun clic.
 
 ---
 
-## Lot 6 — Fiabilisation
+## Lot 6 - Fiabilisation
 
 Le lot 6 initial mélangeait la fiabilisation et la publication. Les deux ne se jugent pas
 avec les mêmes critères : la publication attend un produit dont on est sûr. Scindé.
@@ -128,7 +128,7 @@ projet qui a déjà Vitest.
 
 ---
 
-## Lot 7 — Publication
+## Lot 7 - Publication
 
 - README pour l'utilisateur final, emplacements des captures
 - LICENSE, métadonnées du paquet, icône, `.vscodeignore`, VSIX
@@ -143,7 +143,7 @@ projet qui a déjà Vitest.
 
 ---
 
-## Lot 8 — Python (pytest)
+## Lot 8 - Python (pytest)
 
 **But** : jouer un parcours Python avec la même boucle, les mêmes garanties et la même
 interface que les parcours Vitest (D39).
@@ -156,7 +156,7 @@ interface que les parcours Vitest (D39).
   `progression.ts`
 - Résolution de l'interpréteur (`.venv`, `venv`, `VIRTUAL_ENV`, PATH) et exécution de
   `pip`/`python -m venv` avec le bon Python
-- `classify`, `humanize` : formes pytest (`No module named`, `cannot import name`…)
+- `classify`, `humanize` : formes pytest (`No module named`, `cannot import name`...)
 - Prompt de génération, bandeau du formulaire, exemple `exemple-panier-python.json`, CI
 
 **Fait**, vrais runs pytest compris. Reste la vérification à l'écran : points 85 à 96 de
@@ -164,18 +164,18 @@ interface que les parcours Vitest (D39).
 
 ---
 
-## Lot 9 — Pédagogie
+## Lot 9 - Pédagogie
 
 **But** : qu'un parcours apprenne à coder, syntaxe comprise, sans afficher la solution à
 chaque étape, et qu'il dise ce qu'il ne couvre pas (D40 à D43).
 
 - Format : `steps[].examples`, `steps[].scaffold`, `scope` à la racine
 - `src/core/pedagogy.ts` + `diff.ts` : exemples exigés et non recopiés, 20 lignes par étape
-  au plus, `scope` exigé — à la commande d'import, pas dans `loadParcours`
-- Panneau : « À propos », exemples, test repliable, bouton Squelette, solution en diff,
-  signal « deux solutions de suite », « Reste à faire » en fin de parcours
+  au plus, `scope` exigé - à la commande d'import, pas dans `loadParcours`
+- Panneau : "À propos", exemples, test repliable, bouton Squelette, solution en diff,
+  signal "deux solutions de suite", "Reste à faire" en fin de parcours
 - Prompt : étape 0 de périmètre, règles pédagogiques, deux niveaux (programmation, langage)
-  et « ce que je connais déjà »
+  et "ce que je connais déjà"
 - Exemples livrés enrichis ; QA manuelle 97 à 110
 
 **Fait** côté code. Reste la vérification à l'écran : points 97 à 110 de `MANUAL-QA.md`.
@@ -186,6 +186,6 @@ chaque étape, et qu'il dise ce qu'il ne couvre pas (D40 à D43).
 
 Dans cet ordre de priorité présumé, à revalider avec de vrais utilisateurs :
 
-1. ~~pytest, pour ouvrir à Python~~ — fait au lot 8 (D39)
+1. ~~pytest, pour ouvrir à Python~~ - fait au lot 8 (D39)
 2. Un générateur intégré optionnel, via CLI locale en sous-processus
 3. Parcours multiples et historique

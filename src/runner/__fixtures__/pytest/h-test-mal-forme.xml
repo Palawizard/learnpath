@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.054" timestamp="2026-09-15T09:43:37.069558+02:00" hostname="PalaArch"><testcase classname="" name=".learn.tests.test_step_1_1" time="0.000"><error message="collection failure">../../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.054" timestamp="2026-09-15T09:43:37.069558+02:00" hostname="localhost"><testcase classname="" name=".learn.tests.test_step_1_1" time="0.000"><error message="collection failure">../../venv/lib/python3.14/site-packages/_pytest/python.py:508: in importtestmodule
     mod = import_path(
 ../../venv/lib/python3.14/site-packages/_pytest/pathlib.py:596: in import_path
     importlib.import_module(module_name)
@@ -21,7 +21,7 @@
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 /usr/lib/python3.14/ast.py:46: in parse
     return compile(source, filename, mode, flags,
-E     File "/tmp/claude-1000/-home-palawi-Documents-Projets-NAS-SYNC-Code-learnpath/3b3ca8f5-eeba-4cf5-b4f4-866d0535db06/scratchpad/demo-python/h/.learn/tests/test_step_1_1.py", line 2
+E     File "/tmp/learnpath-fixtures/demo-python/h/.learn/tests/test_step_1_1.py", line 2
 E       assert True
 E       ^^^^^^
 E   IndentationError: expected an indented block after function definition on line 1</error></testcase></testsuite></testsuites>
