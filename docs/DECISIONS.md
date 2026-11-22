@@ -236,7 +236,7 @@ trimmé, donc réimporter ne duplique rien, et une entrée déjà présente à l
 réécrite.
 
 **Conséquences.** C'est le seul fichier hors `.learn/` que l'import touche. C'est une
-entorse assumée à "rien en dehors de `.learn/`" : sans elle, la règle de ne rien toucher hors de `.learn/`
+entorse assumée à "rien en dehors de `.learn/`" : sans elle, cette règle
 protège des fichiers que git, lui, ne protège pas.
 
 ---
@@ -605,7 +605,8 @@ que lire ses dépendances. C'est faux, et deux fois :
   (`findNearestNodeModules`, `loadConfigFromBundledFile`). Ce chemin n'est pas configurable.
 
 Le lien de jonction renvoyait donc ces écritures dans le `node_modules` du projet de
-l'utilisateur, hors de `.learn/`. C'est la règle de ne rien toucher hors de `.learn/` qui saute, à chaque import.
+l'utilisateur, hors de `.learn/`. C'est la règle "rien hors de `.learn/`" qui
+saute, à chaque import.
 
 **Décision.** Deux verrous, l'un pour le cas normal, l'autre pour le bac à sable.
 
@@ -1001,8 +1002,8 @@ le bon côté du compromis, pas une consolation.
 annonçait cette écriture, et le `ResolvedPath` sur ce chemin. Le clic ne calcule plus aucun
 chemin dans le projet de l'utilisateur - la clé du fichier ne sert qu'à lire
 `step.solution`, jamais à construire un chemin. `applySolution` est remplacé par
-`revealCurrentSolution`, qui n'écrit plus que `.learn/state.json`. La règle de ne rien toucher hors de `.learn/`
-n'a plus d'exception.
+`revealCurrentSolution`, qui n'écrit plus que `.learn/state.json`. La règle
+"rien hors de `.learn/`" n'a plus d'exception.
 
 **`planSolution` reste**, et reste testé : `verifyAllGreen` l'utilise pour appliquer les
 solutions dans sa copie temporaire du workspace (D21). C'est désormais le seul chemin qui
@@ -1118,7 +1119,7 @@ réintroduit, en connaissance de cause. Elle est bornée par trois choses, dans 
 3. le plan (`planRedo`) est calculé avant toute écriture, et c'est **lui** qui est affiché
    dans la confirmation.
 
-Cette règle et la section correspondante du `README` sont mises à jour : "rien
+La règle du projet et la section correspondante du `README` sont mises à jour : "rien
 hors de `.learn/`" devient "rien hors de `.learn/` sans un geste explicite, et jamais hors
 de la liste montrée". Un test de non-régression compare l'arborescence complète du projet
 avant et après une reprise : seuls le fichier de l'étape et `.learn/state.json` diffèrent.
@@ -1277,7 +1278,8 @@ même placé dans `.learn/parcours/`, n'est conservé.
 
 **Contexte.** "pytest, pour ouvrir à Python" était la première priorité après le v1
 (plan initial). Tout le produit repose sur une chaîne runner → `RawResult` →
-`classify` → UI, et sur des garanties (D3, D5, D14, D21, D25, rien hors de `.learn/`) écrites pour Vitest.
+`classify` → UI, et sur des garanties (D3, D5, D14, D21, D25, rien hors de `.learn/`)
+écrites pour Vitest.
 La question n'était pas "lancer pytest" mais "tenir les mêmes garanties en Python".
 
 **Décision.** `runner.kind` admet `"pytest"`. Un seul aiguillage, `src/runner/run-tests.ts`,

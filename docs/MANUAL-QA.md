@@ -233,5 +233,5 @@ Importer `examples/exemple-panier.json` dans `examples/demo-project`.
 
 ## Quand c'est fini
 
-Note le résultat : ce qui est confirmé est validé, ce qui a échoué devient un point qui
+Note le résultat de chaque vérification : ce qui a échoué devient un point qui
 bloque. Sans ça, la publication reste en attente.
